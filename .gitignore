@@ -1,0 +1,7 @@
+supabase/functions/.env
+supabase/.temp/
+.env
+.env.*
+!.env.example
+node_modules/
+.DS_Store
