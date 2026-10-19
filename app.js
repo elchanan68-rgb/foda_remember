@@ -20,6 +20,8 @@
   const count = document.querySelector('#memoryCount');
   const search = document.querySelector('#searchMemories');
   const dialog = document.querySelector('#memoryDialog');
+  const bioDialog = document.querySelector('#bioDialog');
+  const bioForm = document.querySelector('#bioForm');
   const form = document.querySelector('#memoryForm');
   const photoInput = document.querySelector('#memoryPhoto');
   const photoStatus = document.querySelector('#photoStatus');
@@ -34,6 +36,8 @@
   const storyInput = document.querySelector('#memoryStory');
   const storyLength = document.querySelector('#storyLength');
   const submitButton = form.querySelector('[type="submit"]');
+  const bioSaveButton = document.querySelector('#bioSaveButton');
+  const bioFormMessage = document.querySelector('#bioFormMessage');
   let activeFilter = 'all';
   let pendingPhoto = '';
   let photoSelectionToken = 0;
@@ -42,6 +46,7 @@
   let memories = loadMemories();
   let remoteMode = Boolean(apiUrl);
   let storageWarningShown = false;
+  let currentBiography = null;
 
   function updateStorageWarning(storage) {
     const warning = storage?.warning === true;
@@ -55,6 +60,54 @@
   function setPhotoStatus(message, state = '') {
     photoStatus.textContent = message;
     photoStatus.dataset.state = state;
+  }
+
+  function biographyText(value, maxLength) {
+    return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
+  }
+
+  function renderBiography(biography) {
+    const bio = biography && typeof biography === 'object' ? biography : {};
+    currentBiography = {
+      summary: biographyText(bio.summary, 1200),
+      birthplace: biographyText(bio.birthplace, 240),
+      childhood: biographyText(bio.childhood, 1200),
+      parents: biographyText(bio.parents, 1200),
+      aliyah: biographyText(bio.aliyah, 1800),
+      fullStory: biographyText(bio.fullStory, 12000)
+    };
+    document.querySelector('#bioSummary').textContent = currentBiography.summary || 'סיפור חייה של סבתא פודה ייכתב כאן בידי המשפחה, מתוך זיכרונות, מסמכים ותמונות.';
+    const factFields = [
+      ['birthplace', '#bioBirthplaceFact', '#bioBirthplace'],
+      ['childhood', '#bioChildhoodFact', '#bioChildhood'],
+      ['parents', '#bioParentsFact', '#bioParents'],
+      ['aliyah', '#bioAliyahFact', '#bioAliyah']
+    ];
+    let factsVisible = false;
+    for (const [key, cardSelector, textSelector] of factFields) {
+      const value = currentBiography[key];
+      document.querySelector(textSelector).textContent = value;
+      document.querySelector(cardSelector).hidden = !value;
+      factsVisible ||= Boolean(value);
+    }
+    document.querySelector('#bioFacts').hidden = !factsVisible;
+    document.querySelector('#bioFullStory').textContent = currentBiography.fullStory || 'הסיפור המלא יופיע כאן לאחר שמשפחת סמינה תוסיף ותשמור אותו.';
+    document.querySelector('#bioFullDetails').hidden = !currentBiography.fullStory;
+    for (const key of ['summary', 'birthplace', 'childhood', 'parents', 'aliyah']) {
+      bioForm.elements.namedItem(key).value = currentBiography[key];
+    }
+    bioForm.elements.namedItem('fullStory').value = currentBiography.fullStory;
+  }
+
+  function openBiographyEditor() {
+    bioFormMessage.textContent = '';
+    bioForm.elements.namedItem('editCode').value = '';
+    if (!remoteMode) {
+      showToast('עריכת קורות החיים זמינה לאחר חיבור האתר לאחסון המשותף.');
+      return;
+    }
+    if (!bioDialog.open) bioDialog.showModal();
+    bioForm.elements.namedItem('summary').focus();
   }
 
   function setupPortraitFallback() {
@@ -169,6 +222,7 @@
       if (!response.ok) throw new Error('השרת החזיר שגיאה.');
       const payload = await response.json();
       memories = normalizeRemoteMemories(payload.memories);
+      renderBiography(payload.biography);
       updateStorageWarning(payload.storage);
       setPrivacyNote('הסיפורים והתמונות המשותפים מוצגים כאן. שליחות חדשות יפורסמו לפי הגדרות האישור של המשפחה.');
       render();
@@ -370,6 +424,51 @@
   dialog.addEventListener('click', (event) => {
     if (event.target === dialog) dialog.close();
   });
+  document.querySelectorAll('[data-open-bio-editor]').forEach((button) => button.addEventListener('click', openBiographyEditor));
+  document.querySelectorAll('[data-close-bio-editor]').forEach((button) => button.addEventListener('click', () => bioDialog.close()));
+  bioDialog.addEventListener('click', (event) => {
+    if (event.target === bioDialog) bioDialog.close();
+  });
+  bioDialog.addEventListener('close', () => { bioForm.elements.namedItem('editCode').value = ''; });
+  bioForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    bioFormMessage.textContent = '';
+    const values = new FormData(bioForm);
+    const biography = {
+      summary: String(values.get('summary') || '').trim(),
+      birthplace: String(values.get('birthplace') || '').trim(),
+      childhood: String(values.get('childhood') || '').trim(),
+      parents: String(values.get('parents') || '').trim(),
+      aliyah: String(values.get('aliyah') || '').trim(),
+      fullStory: String(values.get('fullStory') || '').trim(),
+      editCode: String(values.get('editCode') || '')
+    };
+    if (!biography.summary || !biography.fullStory || !biography.editCode) {
+      bioFormMessage.textContent = 'צריך למלא תקציר, סיפור מלא וקוד עריכה.';
+      return;
+    }
+    bioSaveButton.disabled = true;
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        mode: 'cors',
+        credentials: 'omit',
+        cache: 'no-store',
+        redirect: 'error',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(biography)
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'לא הצלחנו לשמור את קורות החיים.');
+      renderBiography(result.biography);
+      bioDialog.close();
+      showToast('קורות החיים נשמרו והוצגו באתר המשפחתי.');
+    } catch (error) {
+      bioFormMessage.textContent = error instanceof Error ? error.message : 'לא הצלחנו לשמור את קורות החיים.';
+    } finally {
+      bioSaveButton.disabled = false;
+    }
+  });
   document.querySelectorAll('[data-filter]').forEach((button) => {
     button.addEventListener('click', () => {
       activeFilter = button.dataset.filter;
@@ -514,6 +613,7 @@
   });
 
   render();
+  renderBiography(null);
   if (remoteMode) {
     setPrivacyNote('הסיפורים המשותפים מוצגים כאן. סיפורים חדשים יופיעו לאחר אישור מנהל האתר.');
     loadRemoteMemories();

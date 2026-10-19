@@ -9,9 +9,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&family=Frank+Ruhl+Libre:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=quota-20261019">
+  <link rel="stylesheet" href="styles.css?v=biography-20261019">
   <script src="public-config.js?v=family-20261019" defer></script>
-  <script src="app.js?v=quota-20261019" defer></script>
+  <script src="app.js?v=biography-20261019" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -20,7 +20,7 @@
       <span><strong>סבתא פודה</strong><small>משפחת סמינה</small></span>
     </a>
     <nav class="main-nav" aria-label="ניווט ראשי">
-      <a href="#about">על סבתא</a>
+      <a href="#biography">קורות חייה</a>
       <a href="#memories">הסיפורים שלנו</a>
       <a href="#gallery">אלבום תמונות</a>
     </nav>
@@ -69,6 +69,27 @@
         <article class="heritage-card"><span aria-hidden="true">❝</span><h3>מילים ומנהגים</h3><p>ביטויים, שירים ומנהגים שנשארו איתנו בזכותה.</p></article>
       </div>
       <span class="heritage-seal" aria-hidden="true">משפחת<br>סמינה</span>
+    </section>
+
+    <section class="biography-section section-wrap" id="biography" aria-labelledby="biography-title">
+      <div class="biography-heading">
+        <div><p class="eyebrow"><span></span> קורות חייה של סבתא פודה</p><h2 id="biography-title">הדרך שלה, <em>הסיפור שלנו.</em></h2></div>
+        <button class="button button-outline" type="button" data-open-bio-editor>עריכת קורות החיים <span aria-hidden="true">✎</span></button>
+      </div>
+      <div class="biography-paper">
+        <div class="biography-summary-block"><span class="bio-quote" aria-hidden="true">❝</span><div><h3>בכמה מילים</h3><p id="bioSummary">סיפור חייה של סבתא פודה ייכתב כאן בידי המשפחה, מתוך זיכרונות, מסמכים ותמונות.</p></div></div>
+        <div class="biography-facts" id="bioFacts" hidden>
+          <article class="biography-fact" id="bioBirthplaceFact" hidden><span>מקום הולדתה</span><p id="bioBirthplace"></p></article>
+          <article class="biography-fact" id="bioChildhoodFact" hidden><span>ילדותה וגדילתה</span><p id="bioChildhood"></p></article>
+          <article class="biography-fact" id="bioParentsFact" hidden><span>הוריה ומשפחתה</span><p id="bioParents"></p></article>
+          <article class="biography-fact" id="bioAliyahFact" hidden><span>הדרך לארץ</span><p id="bioAliyah"></p></article>
+        </div>
+        <details class="biography-full" id="bioFullDetails">
+          <summary>לקריאת הסיפור המלא <span aria-hidden="true">＋</span></summary>
+          <p id="bioFullStory">הסיפור המלא יופיע כאן לאחר שמשפחת סמינה תוסיף ותשמור אותו.</p>
+        </details>
+        <p class="biography-source-note">הסיפור נכתב ונערך בידי בני המשפחה, כדי לשמור את הזיכרון נאמן למה שסופר ונזכר.</p>
+      </div>
     </section>
 
     <section class="memories section-wrap" id="memories" aria-labelledby="memories-title">
@@ -127,6 +148,21 @@
       <p class="form-message" id="formMessage" role="alert"></p>
       <p class="privacy-note" id="privacyNote"><span aria-hidden="true">♡</span> כרגע הסיפור והתמונה נשמרים בדפדפן הזה. כדי שכל בני המשפחה יראו אותם, צריך לחבר את האתר לאחסון משותף.</p>
       <div class="dialog-actions"><button class="button" type="submit">שמירת הזיכרון <span aria-hidden="true">←</span></button><button class="button button-quiet" id="cancelDialog" type="button">ביטול</button></div>
+    </form>
+  </dialog>
+  <dialog class="memory-dialog bio-dialog" id="bioDialog" aria-labelledby="bioDialogTitle">
+    <form id="bioForm" novalidate>
+      <div class="dialog-heading"><div><p class="eyebrow"><span></span> מנהלים את הסיפור המשפחתי</p><h2 id="bioDialogTitle">עריכת קורות החיים</h2></div><button class="icon-button" type="button" data-close-bio-editor aria-label="סגירה">×</button></div>
+      <p class="bio-editor-help">מלאו רק פרטים שאתם מכירים או שמעתם במשפחה. השינויים יופיעו באתר לכל בני המשפחה לאחר השמירה.</p>
+      <label class="form-label" for="bioSummaryInput">תקציר קצר <span>*</span><textarea id="bioSummaryInput" name="summary" rows="4" maxlength="1200" required placeholder="כמה משפטים על מי הייתה סבתא פודה ומה חשוב לזכור ממסע חייה"></textarea></label>
+      <label class="form-label" for="bioBirthplaceInput">איפה נולדה?<input id="bioBirthplaceInput" name="birthplace" maxlength="240" placeholder="יישוב, אזור או מדינה"></label>
+      <label class="form-label" for="bioChildhoodInput">איפה גדלה ואיך נראו חייה בילדות?<textarea id="bioChildhoodInput" name="childhood" rows="3" maxlength="1200"></textarea></label>
+      <label class="form-label" for="bioParentsInput">מי היו הוריה ומה ידוע על משפחתה?<textarea id="bioParentsInput" name="parents" rows="3" maxlength="1200"></textarea></label>
+      <label class="form-label" for="bioAliyahInput">המסע והעלייה לארץ<textarea id="bioAliyahInput" name="aliyah" rows="4" maxlength="1800" placeholder="שנים, מקומות, תחנות בדרך וזיכרונות שסופרו במשפחה"></textarea></label>
+      <label class="form-label" for="bioFullStoryInput">הסיפור המלא <span>*</span><textarea id="bioFullStoryInput" name="fullStory" rows="8" maxlength="12000" required placeholder="כתבו את קורות חייה ברצף: הילדות, המשפחה, העלייה, החיים בארץ, המנהגים והמורשת שהשאירה"></textarea></label>
+      <label class="form-label" for="bioEditCode">קוד עריכה משפחתי <span>*</span><small>הקוד מאומת מול סוד Supabase, אינו נשמר באתר, ואל תשלחו אותו בצ׳אט.</small><input id="bioEditCode" name="editCode" type="password" maxlength="256" autocomplete="off" required></label>
+      <p class="form-message" id="bioFormMessage" role="alert"></p>
+      <div class="dialog-actions"><button class="button" type="submit" id="bioSaveButton">שמירת קורות החיים <span aria-hidden="true">←</span></button><button class="button button-quiet" type="button" data-close-bio-editor>ביטול</button></div>
     </form>
   </dialog>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
