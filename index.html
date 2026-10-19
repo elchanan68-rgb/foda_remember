@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f5eee4">
   <meta name="description" content="הבית של משפחת סמינה — הסיפורים, התמונות והזיכרונות של סבתא פודה.">
   <title>סבתא פודה — הבית של משפחת סמינה</title>
@@ -30,7 +30,7 @@
   <main id="home">
     <section class="hero" aria-labelledby="hero-title">
       <div class="hero-copy">
-        <p class="eyebrow"><span></span> הבית של משפחת סמינה</p>
+        <p class="eyebrow"><span></span> שורשים מתימן · בית משפחת סמינה</p>
         <h1 id="hero-title">סבתא פודה,<br><em>בלב של כולנו.</em></h1>
         <p class="hero-text">לכל משפחה יש סיפורים שעוברים מדור לדור. כאן אנחנו אוספים את הרגעים, התמונות והמילים שמזכירים לנו כמה סבתא פודה תמיד קרובה.</p>
         <div class="hero-actions">
@@ -42,6 +42,7 @@
       <div class="portrait-wrap">
         <div class="portrait-frame">
           <img id="heroPortrait" src="assets/foda-portrait.jpg" alt="תמונתה של סבתא פודה" fetchpriority="high">
+          <div class="portrait-fallback" id="portraitFallback" hidden><span aria-hidden="true">פ</span><strong>התמונה עוד בדרך לאלבום</strong><small>יש להעלות למאגר את הקובץ שבתיקיית assets בשם foda-portrait.jpg</small></div>
           <span class="photo-corner corner-one" aria-hidden="true"></span><span class="photo-corner corner-two" aria-hidden="true"></span>
         </div>
         <div class="portrait-caption"><span class="caption-flower" aria-hidden="true">✿</span><span><strong>החיוך שתמיד מחכה לנו</strong><small>סבתא פודה אהובה</small></span></div>
@@ -54,6 +55,20 @@
       <div class="strip-mark" aria-hidden="true">❝</div>
       <div><p class="strip-title">הסיפורים שלה הם גם הסיפורים שלנו.</p><p class="strip-copy">מתכון של שבת, מילה חכמה, חיבוק של סוף ביקור — כל זיכרון קטן שומר על האהבה גדולה.</p></div>
       <div class="strip-count"><strong id="memoryCount">0</strong><span>זיכרונות משפחתיים</span></div>
+    </section>
+
+    <section class="heritage-section" aria-labelledby="heritage-title">
+      <div class="heritage-intro">
+        <p class="eyebrow"><span></span> מסורת שעוברת מדור לדור</p>
+        <h2 id="heritage-title">הדרך מתימן ממשיכה<br><em>בתוך הבית שלנו.</em></h2>
+        <p>נשמור כאן את מה שמשפחת סמינה רוצה לספר: הדרך מתימן, הבית שנבנה מחדש, הטעמים, המנהגים והמילים של סבתא פודה. כל זיכרון מוסיף עוד חלק לסיפור המשפחתי.</p>
+      </div>
+      <div class="heritage-cards">
+        <article class="heritage-card"><span aria-hidden="true">⌂</span><h3>דרך ובית</h3><p>סיפורים על מסע, התחלה חדשה והמקומות שהפכו לבית.</p></article>
+        <article class="heritage-card"><span aria-hidden="true">✿</span><h3>טעם של משפחה</h3><p>מתכונים, ריחות ורגעים מהמטבח שעוברים בין הדורות.</p></article>
+        <article class="heritage-card"><span aria-hidden="true">❝</span><h3>מילים ומנהגים</h3><p>ביטויים, שירים ומנהגים שנשארו איתנו בזכותה.</p></article>
+      </div>
+      <span class="heritage-seal" aria-hidden="true">משפחת<br>סמינה</span>
     </section>
 
     <section class="memories section-wrap" id="memories" aria-labelledby="memories-title">
@@ -103,7 +118,8 @@
       </label>
       <label class="form-label" for="memoryStory">הסיפור שלך <span>*</span><textarea id="memoryStory" name="story" rows="5" maxlength="2500" required placeholder="ספרו לנו על הרגע, המקום, הריח או המילים שנשארו איתכם…"></textarea><span class="field-hint"><span id="storyLength">0</span>/2500 תווים</span></label>
       <label class="form-label" for="approvalCode">קוד לפרסום מיידי <small>(לא חובה; בלי קוד הזיכרון ימתין לאישור)</small><input id="approvalCode" name="approvalCode" type="password" maxlength="128" autocomplete="off" placeholder="הזינו קוד משפחתי"></label>
-      <label class="upload-area" for="memoryPhoto"><span class="upload-icon" aria-hidden="true">↥</span><span><strong>מצרפים תמונה</strong><small>JPG, PNG או WebP · עד 8MB</small></span><input id="memoryPhoto" name="photo" type="file" accept="image/jpeg,image/png,image/webp"></label>
+      <label class="upload-area" for="memoryPhoto"><span class="upload-icon" aria-hidden="true">↥</span><span><strong>מצרפים תמונה</strong><small>JPG, PNG או WebP · עד 8MB · אותיות גדולות או קטנות בשם הקובץ מתקבלות</small></span><input id="memoryPhoto" name="photo" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"></label>
+      <p class="photo-status" id="photoStatus" role="status" aria-live="polite"></p>
       <div class="photo-preview" id="photoPreview" hidden><img id="previewImage" alt="תצוגה מקדימה של התמונה שבחרתם"><span id="previewName"></span><button class="remove-photo" id="removePhoto" type="button" aria-label="הסרת התמונה">×</button></div>
       <div class="captcha-wrap" id="captchaWrap" hidden><div id="turnstileWidget"></div></div>
       <label class="honeypot" aria-hidden="true">השאירו שדה זה ריק<input name="website" tabindex="-1" autocomplete="off"></label>

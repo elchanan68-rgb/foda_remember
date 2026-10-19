@@ -22,6 +22,7 @@
   const dialog = document.querySelector('#memoryDialog');
   const form = document.querySelector('#memoryForm');
   const photoInput = document.querySelector('#memoryPhoto');
+  const photoStatus = document.querySelector('#photoStatus');
   const preview = document.querySelector('#photoPreview');
   const previewImage = document.querySelector('#previewImage');
   const previewName = document.querySelector('#previewName');
@@ -34,10 +35,42 @@
   const submitButton = form.querySelector('[type="submit"]');
   let activeFilter = 'all';
   let pendingPhoto = '';
+  let photoSelectionToken = 0;
   let turnstileWidgetId = null;
   let toastTimer;
   let memories = loadMemories();
   let remoteMode = Boolean(apiUrl);
+
+  function setPhotoStatus(message, state = '') {
+    photoStatus.textContent = message;
+    photoStatus.dataset.state = state;
+  }
+
+  function setupPortraitFallback() {
+    const image = document.querySelector('#heroPortrait');
+    const fallback = document.querySelector('#portraitFallback');
+    const candidates = [
+      'assets/foda-portrait.jpg', 'assets/Foda-portrait.jpg', 'assets/FODA-PORTRAIT.JPG',
+      'assets/foda-portrait.JPG', 'assets/Foda-portrait.JPG', 'assets/FODA-PORTRAIT.jpg',
+      'assets/foda-portrait.jpeg', 'assets/Foda-portrait.jpeg', 'Assets/foda-portrait.jpg',
+      'Assets/Foda-portrait.jpg', 'Assets/FODA-PORTRAIT.JPG'
+    ];
+    let candidateIndex = 0;
+    image.onerror = () => {
+      candidateIndex += 1;
+      if (candidateIndex < candidates.length) {
+        image.src = candidates[candidateIndex];
+      } else {
+        image.hidden = true;
+        fallback.hidden = false;
+      }
+    };
+    image.onload = () => {
+      image.hidden = false;
+      fallback.hidden = true;
+    };
+    if (image.complete && image.naturalWidth === 0) image.onerror();
+  }
 
   function loadMemories() {
     try {
@@ -125,7 +158,7 @@
       if (!response.ok) throw new Error('השרת החזיר שגיאה.');
       const payload = await response.json();
       memories = normalizeRemoteMemories(payload.memories);
-      setPrivacyNote('הסיפורים המשותפים מוצגים כאן. סיפורים חדשים יופיעו לאחר אישור מנהל האתר.');
+      setPrivacyNote('הסיפורים והתמונות המשותפים מוצגים כאן. שליחות חדשות יפורסמו לפי הגדרות האישור של המשפחה.');
       render();
     } catch {
       setPrivacyNote('לא הצלחנו להתחבר לאלבום המשותף. כרגע מוצגים רק זיכרונות שנשמרו בדפדפן הזה.');
@@ -255,11 +288,13 @@
   }
 
   function clearPhoto() {
+    photoSelectionToken += 1;
     pendingPhoto = '';
     photoInput.value = '';
     previewImage.removeAttribute('src');
     previewName.textContent = '';
     preview.hidden = true;
+    setPhotoStatus('', '');
   }
 
   async function openImage(file) {
@@ -279,8 +314,20 @@
     });
   }
 
+  async function detectUploadImageFormat(file) {
+    const bytes = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+    if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'JPG';
+    if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a) return 'PNG';
+    if (bytes.length >= 12 && String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP') return 'WebP';
+    return '';
+  }
+
   async function compressPhoto(file) {
     const bitmap = await openImage(file);
+    if (!bitmap.width || !bitmap.height) {
+      bitmap.close();
+      throw new Error('קובץ התמונה לא תקין או לא ניתן לקריאה.');
+    }
     if (bitmap.width * bitmap.height > 40_000_000 || Math.max(bitmap.width, bitmap.height) > 12_000) {
       bitmap.close();
       throw new Error('התמונה גדולה מדי לעיבוד.');
@@ -291,17 +338,21 @@
     canvas.width = Math.max(1, Math.round(bitmap.width * scale));
     canvas.height = Math.max(1, Math.round(bitmap.height * scale));
     const context = canvas.getContext('2d');
-    if (!context) throw new Error('לא ניתן לעבד את התמונה בדפדפן הזה.');
+    if (!context) {
+      bitmap.close();
+      throw new Error('לא ניתן לעבד את התמונה בדפדפן הזה.');
+    }
     context.fillStyle = '#fff';
     context.fillRect(0, 0, canvas.width, canvas.height);
     bitmap.drawImage(context, 0, 0, canvas.width, canvas.height);
     bitmap.close();
     const dataUrl = canvas.toDataURL('image/jpeg', 0.72);
     if (dataUrl.length > MAX_IMAGE_DATA_LENGTH) throw new Error('התמונה עדיין גדולה מדי לאחר הכיווץ.');
-    return dataUrl;
+    return { dataUrl, width: canvas.width, height: canvas.height, bytes: Math.round(dataUrl.length * 0.75) };
   }
 
   document.querySelectorAll('[data-open-form]').forEach((button) => button.addEventListener('click', openDialog));
+  setupPortraitFallback();
   document.querySelector('#closeDialog').addEventListener('click', () => dialog.close());
   document.querySelector('#cancelDialog').addEventListener('click', () => dialog.close());
   dialog.addEventListener('click', (event) => {
@@ -321,27 +372,37 @@
   search.addEventListener('input', render);
   storyInput.addEventListener('input', () => { storyLength.textContent = String(storyInput.value.length); });
   photoInput.addEventListener('change', async () => {
+    const selectionToken = ++photoSelectionToken;
     formMessage.textContent = '';
+    setPhotoStatus('', '');
     const file = photoInput.files?.[0];
     if (!file) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      formMessage.textContent = 'אפשר להעלות קובץ JPG, PNG או WebP בלבד.';
+    if (file.size === 0) {
       clearPhoto();
+      setPhotoStatus('הקובץ ריק. בחרו תמונה אחרת.', 'error');
       return;
     }
     if (file.size > MAX_UPLOAD_BYTES) {
-      formMessage.textContent = 'התמונה גדולה מדי. אפשר לבחור תמונה עד 8MB.';
       clearPhoto();
+      setPhotoStatus('התמונה גדולה מדי. אפשר לבחור תמונה עד 8MB.', 'error');
       return;
     }
+    setPhotoStatus('בודקים את סוג התמונה ומכינים תצוגה מקדימה…', 'checking');
     try {
-      pendingPhoto = await compressPhoto(file);
-      previewImage.src = pendingPhoto;
+      const format = await detectUploadImageFormat(file);
+      if (!format) throw new Error('אפשר להעלות תמונות JPG, PNG או WebP בלבד. שם הקובץ יכול לכלול אותיות גדולות או קטנות.');
+      const compressed = await compressPhoto(file);
+      if (selectionToken !== photoSelectionToken) return;
+      pendingPhoto = compressed.dataUrl;
+      previewImage.src = compressed.dataUrl;
       previewName.textContent = file.name.slice(0, 100);
       preview.hidden = false;
-    } catch {
-      formMessage.textContent = 'לא הצלחנו לפתוח את התמונה. נסו קובץ תמונה אחר.';
+      setPhotoStatus(`התמונה תקינה ומוכנה להעלאה · ${format.toUpperCase()} · ${compressed.width}×${compressed.height} · לאחר הכיווץ כ־${Math.max(1, Math.round(compressed.bytes / 1024))}KB`, 'success');
+    } catch (error) {
+      if (selectionToken !== photoSelectionToken) return;
+      const message = error instanceof Error ? error.message : 'לא הצלחנו לפתוח את התמונה. נסו קובץ אחר.';
       clearPhoto();
+      setPhotoStatus(message, 'error');
     }
   });
   document.querySelector('#removePhoto').addEventListener('click', clearPhoto);
