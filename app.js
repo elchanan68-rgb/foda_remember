@@ -7,16 +7,19 @@
   const publicConfig = window.FODA_PUBLIC_CONFIG || {};
   const apiUrl = typeof publicConfig.apiUrl === 'string' && /^https:\/\//i.test(publicConfig.apiUrl) ? publicConfig.apiUrl.replace(/\/$/, '') : '';
   const turnstileSiteKey = typeof publicConfig.turnstileSiteKey === 'string' ? publicConfig.turnstileSiteKey.trim() : '';
-  const allowedCategories = new Set(['family', 'food', 'wisdom', 'celebration']);
+  const allowedCategories = new Set(['family', 'food', 'wisdom', 'celebration', 'photos']);
   const categoryNames = {
     family: 'רגעים משפחתיים',
     food: 'מהמטבח של סבתא',
     wisdom: 'מילים של סבתא',
-    celebration: 'שמחות וחגים'
+    celebration: 'שמחות וחגים',
+    photos: 'תמונות כלליות'
   };
 
   const grid = document.querySelector('#memoryGrid');
   const gallery = document.querySelector('#galleryGrid');
+  const moreMemoriesButton = document.querySelector('#moreMemories');
+  const morePhotosButton = document.querySelector('#morePhotos');
   const count = document.querySelector('#memoryCount');
   const search = document.querySelector('#searchMemories');
   const dialog = document.querySelector('#memoryDialog');
@@ -39,6 +42,8 @@
   const bioSaveButton = document.querySelector('#bioSaveButton');
   const bioFormMessage = document.querySelector('#bioFormMessage');
   let activeFilter = 'all';
+  let visibleMemoryLimit = 6;
+  let visiblePhotoLimit = 8;
   let pendingPhoto = '';
   let photoSelectionToken = 0;
   let turnstileWidgetId = null;
@@ -312,7 +317,7 @@
   function render() {
     const query = search.value.trim().toLocaleLowerCase('he');
     const visible = memories.filter((memory) => {
-      const matchesFilter = activeFilter === 'all' || memory.category === activeFilter;
+      const matchesFilter = activeFilter === 'all' || (activeFilter === 'photos' ? Boolean(memory.photo) : memory.category === activeFilter);
       const searchable = `${memory.title} ${memory.author} ${memory.story} ${categoryNames[memory.category]}`.toLocaleLowerCase('he');
       return matchesFilter && (!query || searchable.includes(query));
     });
@@ -320,7 +325,8 @@
     count.textContent = String(memories.length);
     grid.replaceChildren();
     if (!visible.length) grid.append(makeEmptyState());
-    else visible.forEach((memory) => grid.append(createMemoryCard(memory)));
+    else visible.slice(0, visibleMemoryLimit).forEach((memory) => grid.append(createMemoryCard(memory)));
+    moreMemoriesButton.hidden = visible.length <= visibleMemoryLimit;
 
     gallery.replaceChildren();
     const photos = memories.filter((memory) => memory.photo);
@@ -331,7 +337,7 @@
       gallery.append(empty);
       return;
     }
-    photos.forEach((memory) => {
+    photos.slice(0, visiblePhotoLimit).forEach((memory) => {
       const figure = element('figure', 'gallery-item');
       const image = element('img');
       image.src = memory.photo;
@@ -343,6 +349,7 @@
       figure.append(image, caption);
       gallery.append(figure);
     });
+    morePhotosButton.hidden = photos.length <= visiblePhotoLimit;
   }
 
   function openDialog() {
@@ -402,6 +409,8 @@
       if (brand === 'avif' || brand === 'avis') return 'AVIF';
     }
     if (bytes.length >= 6 && ['GIF87a', 'GIF89a'].includes(String.fromCharCode(...bytes.slice(0, 6)))) return 'GIF';
+    const declaredType = file.type.toLowerCase();
+    if (declaredType.startsWith('image/') && declaredType !== 'image/svg+xml') return declaredType.slice(6).toUpperCase();
     return '';
   }
 
@@ -425,11 +434,15 @@
       bitmap.close();
       throw new Error('לא ניתן לעבד את התמונה בדפדפן הזה.');
     }
-    context.fillStyle = '#fff';
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    bitmap.drawImage(context, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+    let dataUrl;
+    try {
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      bitmap.drawImage(context, 0, 0, canvas.width, canvas.height);
+      dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+    } finally {
+      bitmap.close();
+    }
     if (dataUrl.length > MAX_IMAGE_DATA_LENGTH) throw new Error('התמונה עדיין גדולה מדי לאחר הכיווץ.');
     return { dataUrl, width: canvas.width, height: canvas.height, bytes: Math.round(dataUrl.length * 0.75) };
   }
@@ -487,6 +500,7 @@
   document.querySelectorAll('[data-filter]').forEach((button) => {
     button.addEventListener('click', () => {
       activeFilter = button.dataset.filter;
+      visibleMemoryLimit = 6;
       document.querySelectorAll('[data-filter]').forEach((chip) => {
         const active = chip === button;
         chip.classList.toggle('active', active);
@@ -495,7 +509,9 @@
       render();
     });
   });
-  search.addEventListener('input', render);
+  search.addEventListener('input', () => { visibleMemoryLimit = 6; render(); });
+  moreMemoriesButton.addEventListener('click', () => { visibleMemoryLimit += 6; render(); });
+  morePhotosButton.addEventListener('click', () => { visiblePhotoLimit += 8; render(); });
   storyInput.addEventListener('input', () => { storyLength.textContent = String(storyInput.value.length); });
   photoInput.addEventListener('change', async () => {
     const selectionToken = ++photoSelectionToken;
@@ -516,14 +532,14 @@
     setPhotoStatus('בודקים את סוג התמונה ומכינים תצוגה מקדימה…', 'checking');
     try {
       const format = await detectUploadImageFormat(file);
-      if (!format) throw new Error('אפשר להעלות תמונות JPG, PNG או WebP בלבד. שם הקובץ יכול לכלול אותיות גדולות או קטנות.');
+      if (file.type.toLowerCase() === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg')) throw new Error('\u05e7\u05d5\u05d1\u05e6\u05d9 SVG \u05dc\u05d0 \u05e0\u05d9\u05ea\u05e0\u05d9\u05dd \u05dc\u05d4\u05e2\u05dc\u05d0\u05d4. \u05d1\u05d7\u05e8\u05d5 \u05ea\u05de\u05d5\u05e0\u05d4 \u05e6\u05d9\u05dc\u05d5\u05de\u05d9\u05ea.');
       const compressed = await compressPhoto(file);
       if (selectionToken !== photoSelectionToken) return;
       pendingPhoto = compressed.dataUrl;
       previewImage.src = compressed.dataUrl;
       previewName.textContent = file.name.slice(0, 100);
       preview.hidden = false;
-      setPhotoStatus(`התמונה תקינה ומוכנה להעלאה · ${format.toUpperCase()} · ${compressed.width}×${compressed.height} · לאחר הכיווץ כ־${Math.max(1, Math.round(compressed.bytes / 1024))}KB`, 'success');
+      setPhotoStatus(`התמונה תקינה ומוכנה להעלאה · ${(format || '\u05ea\u05de\u05d5\u05e0\u05d4').toUpperCase()} · ${compressed.width}×${compressed.height} · לאחר הכיווץ כ־${Math.max(1, Math.round(compressed.bytes / 1024))}KB`, 'success');
     } catch (error) {
       if (selectionToken !== photoSelectionToken) return;
       const message = error instanceof Error ? error.message : 'לא הצלחנו לפתוח את התמונה. נסו קובץ אחר.';
@@ -548,6 +564,12 @@
     const title = titleInput || (pendingPhoto ? `תמונה – ${categoryNames[category]}` : 'זיכרון משפחתי');
     const author = authorInput || 'בן/בת משפחה';
     if (remoteMode) {
+      const approvalCode = cleanText(data.get('approvalCode'), 128);
+      if (pendingPhoto && !approvalCode) {
+        formMessage.textContent = 'כדי להעלות תמונה, צריך להזין את מילת הקוד המשפחתית.';
+        document.querySelector('#approvalCode').focus();
+        return;
+      }
       if (!turnstileSiteKey || !window.turnstile || turnstileWidgetId === null) {
         formMessage.textContent = 'החיבור המשותף עדיין לא מוכן. נסו שוב מאוחר יותר.';
         return;
@@ -563,7 +585,6 @@
       upload.set('story', story);
       upload.set('category', category);
       upload.set('website', cleanText(data.get('website'), 200));
-      const approvalCode = cleanText(data.get('approvalCode'), 128);
       if (approvalCode) upload.set('approvalCode', approvalCode);
       try {
         if (pendingPhoto) {
@@ -618,6 +639,7 @@
     clearPhoto();
     dialog.close();
     activeFilter = 'all';
+    visibleMemoryLimit = 6;
     document.querySelectorAll('[data-filter]').forEach((chip) => {
       const active = chip.dataset.filter === 'all';
       chip.classList.toggle('active', active);

@@ -104,10 +104,12 @@
           <button class="filter-chip" type="button" data-filter="food" aria-pressed="false">מהמטבח של סבתא</button>
           <button class="filter-chip" type="button" data-filter="wisdom" aria-pressed="false">מילים של סבתא</button>
           <button class="filter-chip" type="button" data-filter="celebration" aria-pressed="false">שמחות וחגים</button>
+          <button class="filter-chip" type="button" data-filter="photos" aria-pressed="false">תמונות בלבד</button>
         </div>
         <label class="search-box"><span aria-hidden="true">⌕</span><input id="searchMemories" type="search" placeholder="חיפוש בסיפורים" aria-label="חיפוש בסיפורים"></label>
       </div>
       <div class="memory-grid" id="memoryGrid" aria-live="polite"></div>
+      <button class="button button-outline load-more" id="moreMemories" type="button" hidden>הצגת עוד זיכרונות</button>
     </section>
 
     <section class="gallery-section" id="gallery" aria-labelledby="gallery-title">
@@ -116,7 +118,11 @@
           <div><p class="eyebrow"><span></span> רגעים שנשארים בתמונה</p><h2 id="gallery-title">אלבום המשפחה</h2><p class="section-subtitle">תמונות שאומרות יותר מאלף מילים.</p></div>
           <button class="button button-outline" type="button" data-open-form>＋ הוספת תמונה או סיפור</button>
         </div>
-        <div class="gallery-grid" id="galleryGrid" aria-live="polite"></div>
+        <details class="gallery-details">
+          <summary>פתיחת אלבום התמונות</summary>
+          <div class="gallery-grid" id="galleryGrid" aria-live="polite"></div>
+          <button class="button button-outline load-more" id="morePhotos" type="button" hidden>הצגת עוד תמונות</button>
+        </details>
       </div>
     </section>
 
@@ -136,10 +142,10 @@
       <label class="form-label" for="memoryTitle">כותרת קצרה <small>(לא חובה)</small><input id="memoryTitle" name="title" maxlength="90" placeholder="למשל: הריח של החלות בשישי"></label>
       <label class="form-label" for="memoryAuthor">מי משתף/ת? <small>(לא חובה)</small><input id="memoryAuthor" name="author" maxlength="50" placeholder="השם שלך"></label>
       <label class="form-label" for="memoryCategory">לאיזה אלבום זה שייך?
-        <select id="memoryCategory" name="category"><option value="family">רגעים משפחתיים</option><option value="food">מהמטבח של סבתא</option><option value="wisdom">מילים של סבתא</option><option value="celebration">שמחות וחגים</option></select>
+        <select id="memoryCategory" name="category"><option value="family">רגעים משפחתיים</option><option value="food">מהמטבח של סבתא</option><option value="wisdom">מילים של סבתא</option><option value="celebration">שמחות וחגים</option><option value="photos">תמונות כלליות — בלי שיוך לאירוע</option></select>
       </label>
       <label class="form-label" for="memoryStory">הסיפור שלך <small>(לא חובה אם מצרפים תמונה)</small><textarea id="memoryStory" name="story" rows="5" maxlength="2500" placeholder="ספרו לנו על הרגע, המקום, הריח או המילים שנשארו איתכם…"></textarea><span class="field-hint"><span id="storyLength">0</span>/2500 תווים</span></label>
-      <label class="form-label" for="approvalCode">קוד לפרסום מיידי <small>(לא חובה; בלי קוד הזיכרון ימתין לאישור)</small><input id="approvalCode" name="approvalCode" type="password" maxlength="128" autocomplete="off" placeholder="הזינו קוד משפחתי"></label>
+      <label class="form-label" for="approvalCode">מילת קוד משפחתית <small>(חובה כשמצרפים תמונה; תמונה עם קוד נכון מתפרסמת מיד. לסיפור בלבד אפשר להשאיר ריק)</small><input id="approvalCode" name="approvalCode" type="password" maxlength="128" autocomplete="off" placeholder="הזינו קוד משפחתי"></label>
       <label class="upload-area" for="memoryPhoto"><span class="upload-icon" aria-hidden="true">↥</span><span><strong>מצרפים תמונה</strong><small>אפשר להעלות תמונה בלבד לפי נושא · תמונות iPhone יכווצו ל־JPG · עד 30MB לפני כיווץ</small></span><input id="memoryPhoto" name="photo" type="file" accept="image/*,.heic,.heif,.avif"></label>
       <p class="photo-status" id="photoStatus" role="status" aria-live="polite"></p>
       <div class="photo-preview" id="photoPreview" hidden><img id="previewImage" alt="תצוגה מקדימה של התמונה שבחרתם"><span id="previewName"></span><button class="remove-photo" id="removePhoto" type="button" aria-label="הסרת התמונה">×</button></div>

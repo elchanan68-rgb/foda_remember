@@ -51,3 +51,12 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}body{min-width:320px}bu
 .bio-dialog #bioFullStoryInput{min-height:180px}
 .bio-dialog .dialog-actions{position:sticky;bottom:0;padding:12px 0 4px;background:linear-gradient(#fffdf9ed,#fffdf9 30%)}
 @media(max-width:650px){.biography-section{padding-top:52px;padding-bottom:48px}.biography-heading{align-items:start;flex-direction:column}.biography-heading .button{width:100%}.biography-paper{padding:26px 18px 20px}.biography-summary-block{grid-template-columns:36px 1fr;gap:12px}.bio-quote{width:36px;height:36px;font-size:25px}.biography-facts{grid-template-columns:1fr;gap:9px;margin-top:20px}.biography-fact{padding:13px 14px}.bio-dialog{max-height:calc(100dvh - 18px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}}
+/* Compact archive view: reveal more memories and photos on demand. */
+.load-more{display:flex;min-height:44px;margin:18px auto 0}
+.load-more[hidden]{display:none}
+.gallery-details{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
+.gallery-details>summary{width:max-content;max-width:100%;cursor:pointer;color:var(--wine);font-weight:700;font-size:14px;padding:8px 2px}
+.gallery-details[open]>summary{margin-bottom:12px}
+.gallery-details .gallery-grid{padding-top:0}
+@media(min-width:651px){.hero{min-height:min(78vh,650px)}.welcome-strip{margin-top:-18px}.heritage-section{padding-top:64px;padding-bottom:64px}.biography-section{padding-top:58px;padding-bottom:58px}.memories{padding-top:64px;padding-bottom:58px}.gallery-section{padding-top:48px;padding-bottom:52px}.closing-note{padding-top:42px;padding-bottom:40px}}
+@media(max-width:650px){.heritage-section{padding-top:48px;padding-bottom:48px}.biography-section{padding-top:48px;padding-bottom:48px}.gallery-section{padding-top:38px;padding-bottom:40px}}
