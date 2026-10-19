@@ -19,6 +19,11 @@
   const grid = document.querySelector('#memoryGrid');
   const gallery = document.querySelector('#galleryGrid');
   const uploadResult = document.querySelector('#uploadResult');
+  const managerModeButton = document.querySelector('#managerModeButton');
+  const managerDialog = document.querySelector('#managerDialog');
+  const managerForm = document.querySelector('#managerForm');
+  const managerDeleteCode = document.querySelector('#managerDeleteCode');
+  const managerFormMessage = document.querySelector('#managerFormMessage');
   const moreMemoriesButton = document.querySelector('#moreMemories');
   const morePhotosButton = document.querySelector('#morePhotos');
   const count = document.querySelector('#memoryCount');
@@ -53,6 +58,7 @@
   let remoteMode = Boolean(apiUrl);
   let storageWarningShown = false;
   let currentBiography = null;
+  let managerCode = '';
 
   function updateStorageWarning(storage) {
     const warning = storage?.warning === true;
@@ -317,6 +323,12 @@
     const date = new Date(memory.createdAt);
     byline.append(element('time', 'memory-date', Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'short', year: 'numeric' }).format(date)));
     body.append(byline);
+    if (managerCode) {
+      const deleteButton = element('button', 'delete-memory', 'מחיקת הזיכרון');
+      deleteButton.type = 'button';
+      deleteButton.dataset.deleteMemory = memory.id;
+      body.append(deleteButton);
+    }
     card.append(body);
     return card;
   }
@@ -357,6 +369,12 @@
       caption.append(element('strong', '', memory.title));
       caption.append(element('span', '', `מאת ${memory.author}`));
       figure.append(image, caption);
+      if (managerCode) {
+        const deleteButton = element('button', 'delete-memory gallery-delete', 'מחיקה');
+        deleteButton.type = 'button';
+        deleteButton.dataset.deleteMemory = memory.id;
+        figure.append(deleteButton);
+      }
       gallery.append(figure);
     });
     morePhotosButton.hidden = photos.length <= visiblePhotoLimit;
@@ -458,6 +476,75 @@
   }
 
   document.querySelectorAll('[data-open-form]').forEach((button) => button.addEventListener('click', openDialog));
+  managerModeButton.hidden = !remoteMode;
+  managerModeButton.addEventListener('click', () => {
+    if (managerCode) {
+      managerCode = '';
+      managerModeButton.textContent = 'ניהול ומחיקה';
+      render();
+      return;
+    }
+    managerFormMessage.textContent = '';
+    managerForm.reset();
+    managerDialog.showModal();
+    managerDeleteCode.focus();
+  });
+  document.querySelector('#closeManagerDialog').addEventListener('click', () => managerDialog.close());
+  document.querySelector('#cancelManagerDialog').addEventListener('click', () => managerDialog.close());
+  managerDialog.addEventListener('click', (event) => { if (event.target === managerDialog) managerDialog.close(); });
+  managerForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const code = managerDeleteCode.value.trim();
+    if (!code || code.length > 128) {
+      managerFormMessage.textContent = 'הזינו קוד מנהל תקין.';
+      return;
+    }
+    managerCode = code;
+    managerDeleteCode.value = '';
+    managerDialog.close();
+    managerModeButton.textContent = 'יציאה ממצב ניהול';
+    render();
+    showToast('מצב ניהול פעיל במכשיר הזה. אפשר למחוק זיכרונות שפורסמו.');
+  });
+  const handleDeleteClick = async (event) => {
+    const button = event.target.closest('[data-delete-memory]');
+    if (!button || !managerCode) return;
+    const memory = memories.find((item) => item.id === button.dataset.deleteMemory);
+    if (!memory || !window.confirm(`למחוק את „${memory.title}” לצמיתות, כולל התמונה?`)) return;
+    button.disabled = true;
+    button.textContent = 'מוחקים…';
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'DELETE',
+        mode: 'cors',
+        credentials: 'omit',
+        cache: 'no-store',
+        redirect: 'error',
+        headers: { 'Content-Type': 'application/json', 'x-manager-code': managerCode },
+        body: JSON.stringify({ id: memory.id })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'לא הצלחנו למחוק את הזיכרון.');
+      await loadRemoteMemories();
+      uploadResult.textContent = result.warning || `„${memory.title}” נמחק מהאתר.`;
+      uploadResult.hidden = false;
+      uploadResult.dataset.state = result.warning ? 'pending' : 'success';
+      showToast(uploadResult.textContent);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Failed to fetch') {
+        showToast('המחיקה נכשלה בגלל חיבור או הגדרות CORS. פרסו את פונקציית Supabase המעודכנת ונסו שוב.');
+      } else if (error instanceof Error && error.message === 'קוד המנהל שגוי.') {
+        managerCode = '';
+        managerModeButton.textContent = 'ניהול ומחיקה';
+        render();
+        showToast('קוד המנהל שגוי. מצב הניהול נסגר.');
+      } else {
+        showToast(error instanceof Error ? error.message : 'לא הצלחנו למחוק את הזיכרון.');
+      }
+    }
+  };
+  grid.addEventListener('click', handleDeleteClick);
+  gallery.addEventListener('click', handleDeleteClick);
   setupPortraitFallback();
   document.querySelector('#closeDialog').addEventListener('click', () => dialog.close());
   document.querySelector('#cancelDialog').addEventListener('click', () => dialog.close());

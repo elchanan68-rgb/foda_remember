@@ -9,9 +9,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&family=Frank+Ruhl+Libre:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=photos-status-20261019">
+  <link rel="stylesheet" href="styles.css?v=manager-delete-20261019">
   <script src="public-config.js?v=family-20261019" defer></script>
-  <script src="app.js?v=photos-status-20261019" defer></script>
+  <script src="app.js?v=manager-delete-20261019" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -95,7 +95,7 @@
     <section class="memories section-wrap" id="memories" aria-labelledby="memories-title">
       <div class="section-heading">
         <div><p class="eyebrow"><span></span> קולות מהמשפחה</p><h2 id="memories-title">הסיפורים שלנו</h2><p class="section-subtitle">רגעים, צחוקים ומילים שנרצה לשמור קרוב.</p></div>
-        <button class="button button-outline" type="button" data-open-form>＋ הוספת סיפור</button>
+        <div class="memory-heading-actions"><button class="button button-outline" id="managerModeButton" type="button" hidden>ניהול ומחיקה</button><button class="button button-outline" type="button" data-open-form>＋ הוספת סיפור</button></div>
       </div>
       <div class="memory-tools">
         <div class="filters" role="group" aria-label="סינון סיפורים">
@@ -155,6 +155,15 @@
       <p class="form-message" id="formMessage" role="alert"></p>
       <p class="privacy-note" id="privacyNote"><span aria-hidden="true">♡</span> כרגע הסיפור והתמונה נשמרים בדפדפן הזה. כדי שכל בני המשפחה יראו אותם, צריך לחבר את האתר לאחסון משותף.</p>
       <div class="dialog-actions"><button class="button" type="submit">שמירת הזיכרון <span aria-hidden="true">←</span></button><button class="button button-quiet" id="cancelDialog" type="button">ביטול</button></div>
+    </form>
+  </dialog>
+  <dialog class="memory-dialog" id="managerDialog" aria-labelledby="managerDialogTitle">
+    <form id="managerForm" novalidate>
+      <div class="dialog-heading"><div><p class="eyebrow"><span></span> אזור פרטי למנהל</p><h2 id="managerDialogTitle">ניהול הזיכרונות</h2></div><button class="icon-button" type="button" id="closeManagerDialog" aria-label="סגירה">×</button></div>
+      <p class="manager-help">הזינו את קוד המחיקה הסודי שהוגדר ב־Supabase. הקוד נשלח רק בעת מחיקה ואינו נשמר באתר.</p>
+      <label class="form-label" for="managerDeleteCode">קוד מנהל<input id="managerDeleteCode" type="password" maxlength="128" autocomplete="current-password" required placeholder="קוד מחיקה"></label>
+      <p class="form-message" id="managerFormMessage" role="alert"></p>
+      <div class="dialog-actions"><button class="button" type="submit">הפעלת מצב ניהול</button><button class="button button-quiet" type="button" id="cancelManagerDialog">ביטול</button></div>
     </form>
   </dialog>
   <dialog class="memory-dialog bio-dialog" id="bioDialog" aria-labelledby="bioDialogTitle">

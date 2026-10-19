@@ -23,6 +23,13 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}body{min-width:320px}bu
 .upload-result{margin:0 0 18px;padding:14px 17px;border:1px solid #9cbd9f;border-radius:12px;background:#edf6ed;color:#315d39;font-weight:600;line-height:1.65}
 .upload-result[data-state="pending"]{border-color:#d7bf8c;background:#fbf5e8;color:#715724}
 .upload-result[hidden]{display:none}
+.memory-heading-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.delete-memory{position:relative;z-index:1;margin-top:14px;min-height:40px;padding:0 13px;border:1px solid #a8564e66;border-radius:999px;background:#fff5f2;color:#8e332e;font-size:13px;font-weight:700;cursor:pointer}
+.delete-memory:hover{background:#f7e1dc}
+.delete-memory:disabled{opacity:.65;cursor:wait}
+.gallery-delete{position:absolute;top:10px;right:10px;margin:0;border-color:#ffffff99;background:#fff9;color:#562b25;backdrop-filter:blur(6px)}
+.manager-help{margin:0 0 18px;color:var(--muted);line-height:1.75}
+@media(max-width:650px){.memory-heading-actions{width:100%;display:grid;grid-template-columns:1fr 1fr}.memory-heading-actions .button{font-size:13px;padding:0 10px;white-space:nowrap}}
 @media(max-width:650px){.site-header{height:auto;min-height:calc(70px + env(safe-area-inset-top));padding:env(safe-area-inset-top) 14px 8px;display:flex;flex-wrap:wrap;row-gap:3px}.brand{order:1}.site-header>[data-open-form]{order:2}.main-nav{order:3;display:flex;flex:0 0 100%;justify-content:flex-start;gap:8px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;padding:1px 0 0}.main-nav::-webkit-scrollbar{display:none}.main-nav a{flex:none;min-height:44px;padding:10px 12px;border-radius:999px;background:#f1e8de;color:var(--wine-dark);font-size:14px;font-weight:700;white-space:nowrap}.main-nav a:active{background:#e8d8c8}}
 @media(max-height:560px) and (orientation:landscape){.hero{min-height:0;padding-top:32px;padding-bottom:42px;grid-template-columns:1.1fr .9fr;gap:28px}.portrait-wrap{max-width:300px}.portrait-frame{height:min(62vh,330px)}.memory-dialog{max-height:96vh;max-height:96dvh}}
 @media(pointer:coarse){.filter-chip,.button,.back-top{touch-action:manipulation}}
