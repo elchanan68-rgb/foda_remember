@@ -102,6 +102,7 @@
         <select id="memoryCategory" name="category"><option value="family">רגעים משפחתיים</option><option value="food">מהמטבח של סבתא</option><option value="wisdom">מילים של סבתא</option><option value="celebration">שמחות וחגים</option></select>
       </label>
       <label class="form-label" for="memoryStory">הסיפור שלך <span>*</span><textarea id="memoryStory" name="story" rows="5" maxlength="2500" required placeholder="ספרו לנו על הרגע, המקום, הריח או המילים שנשארו איתכם…"></textarea><span class="field-hint"><span id="storyLength">0</span>/2500 תווים</span></label>
+      <label class="form-label" for="approvalCode">קוד לפרסום מיידי <small>(לא חובה; בלי קוד הזיכרון ימתין לאישור)</small><input id="approvalCode" name="approvalCode" type="password" maxlength="128" autocomplete="off" placeholder="הזינו קוד משפחתי"></label>
       <label class="upload-area" for="memoryPhoto"><span class="upload-icon" aria-hidden="true">↥</span><span><strong>מצרפים תמונה</strong><small>JPG, PNG או WebP · עד 8MB</small></span><input id="memoryPhoto" name="photo" type="file" accept="image/jpeg,image/png,image/webp"></label>
       <div class="photo-preview" id="photoPreview" hidden><img id="previewImage" alt="תצוגה מקדימה של התמונה שבחרתם"><span id="previewName"></span><button class="remove-photo" id="removePhoto" type="button" aria-label="הסרת התמונה">×</button></div>
       <div class="captcha-wrap" id="captchaWrap" hidden><div id="turnstileWidget"></div></div>

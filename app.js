@@ -374,6 +374,8 @@
       upload.set('story', story);
       upload.set('category', category);
       upload.set('website', cleanText(data.get('website'), 200));
+      const approvalCode = cleanText(data.get('approvalCode'), 128);
+      if (approvalCode) upload.set('approvalCode', approvalCode);
       try {
         if (pendingPhoto) {
           const photoBlob = dataUrlToBlob(pendingPhoto);
@@ -396,7 +398,12 @@
         clearPhoto();
         dialog.close();
         window.turnstile.reset(turnstileWidgetId);
-        showToast('תודה! הזיכרון נשלח לבדיקה ויופיע לאחר אישור.');
+        if (result.pending === false) {
+          showToast('תודה! הזיכרון פורסם באלבום המשפחתי.');
+          await loadRemoteMemories();
+        } else {
+          showToast('תודה! הזיכרון נשלח לבדיקה ויופיע לאחר אישור.');
+        }
       } catch (error) {
         formMessage.textContent = error.message === 'Failed to fetch' ? 'השליחה נכשלה. בדקו את החיבור לאינטרנט ונסו שוב.' : error.message;
         if (window.turnstile && turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
