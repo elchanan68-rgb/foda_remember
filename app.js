@@ -18,6 +18,7 @@
 
   const grid = document.querySelector('#memoryGrid');
   const gallery = document.querySelector('#galleryGrid');
+  const uploadResult = document.querySelector('#uploadResult');
   const moreMemoriesButton = document.querySelector('#moreMemories');
   const morePhotosButton = document.querySelector('#morePhotos');
   const count = document.querySelector('#memoryCount');
@@ -188,7 +189,7 @@
     toast.textContent = message;
     toast.classList.add('visible');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove('visible'), 4200);
+    toastTimer = setTimeout(() => toast.classList.remove('visible'), 8500);
   }
 
   function trustedPhotoUrl(value) {
@@ -216,11 +217,12 @@
         photo: trustedPhotoUrl(row.photoUrl),
         createdAt: typeof row.createdAt === 'string' && row.createdAt.length <= 40 ? row.createdAt : new Date().toISOString()
       };
-    }).filter((row) => row && row.title && row.author && row.story);
+    // Keep approved photo-only memories; they have no story text by design.
+    }).filter((row) => row && row.title && row.author && (row.story || row.photo));
   }
 
   async function loadRemoteMemories() {
-    if (!apiUrl) return;
+    if (!apiUrl) return false;
     try {
       const response = await fetch(apiUrl, { method: 'GET', mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error' });
       if (!response.ok) throw new Error('השרת החזיר שגיאה.');
@@ -230,8 +232,10 @@
       updateStorageWarning(payload.storage);
       setPrivacyNote('הסיפורים והתמונות המשותפים מוצגים כאן. שליחות חדשות יפורסמו לפי הגדרות האישור של המשפחה.');
       render();
+      return true;
     } catch {
       setPrivacyNote('לא הצלחנו להתחבר לאלבום המשותף. כרגע מוצגים רק זיכרונות שנשמרו בדפדפן הזה.');
+      return false;
     }
   }
 
@@ -300,6 +304,9 @@
       image.src = memory.photo;
       image.alt = `תמונה לסיפור: ${memory.title}`;
       image.loading = 'lazy';
+      image.addEventListener('error', () => {
+        image.replaceWith(element('div', 'photo-unavailable', 'התמונה נשמרה אך לא נטענה. נסו לרענן את הדף.'));
+      }, { once: true });
       card.append(image);
     }
     const body = element('div', 'memory-card-body');
@@ -343,6 +350,9 @@
       image.src = memory.photo;
       image.alt = memory.title;
       image.loading = 'lazy';
+      image.addEventListener('error', () => {
+        figure.replaceChildren(element('div', 'gallery-image-error', 'התמונה לא נטענה. רעננו את הדף כדי לנסות שוב.'));
+      }, { once: true });
       const caption = element('figcaption');
       caption.append(element('strong', '', memory.title));
       caption.append(element('span', '', `מאת ${memory.author}`));
@@ -590,8 +600,11 @@
         if (pendingPhoto) {
           const photoBlob = dataUrlToBlob(pendingPhoto);
           upload.set('photo', photoBlob, 'family-photo.jpg');
+          setPhotoStatus('מעלים את התמונה ושומרים אותה באלבום…', 'checking');
         }
         submitButton.disabled = true;
+        submitButton.dataset.originalLabel = submitButton.textContent;
+        submitButton.textContent = 'שולחים…';
         const response = await fetch(apiUrl, {
           method: 'POST',
           mode: 'cors',
@@ -604,26 +617,44 @@
         const result = await response.json().catch(() => ({}));
         updateStorageWarning(result.storage);
         if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'לא הצלחנו לשלוח את הזיכרון.');
+        const uploadedPhoto = Boolean(pendingPhoto);
         form.reset();
         storyLength.textContent = '0';
         clearPhoto();
         dialog.close();
         window.turnstile.reset(turnstileWidgetId);
         if (result.pending === false) {
-          showToast(result.storage?.warning
-            ? 'הזיכרון פורסם. התראת אחסון: מכסת התמונות הגיעה ל־80% והעלאות תמונה נעצרו.'
-            : 'תודה! הזיכרון פורסם באלבום המשפחתי.');
-          await loadRemoteMemories();
+          const refreshed = await loadRemoteMemories();
+          const photoVisible = refreshed && memories.some((memory) => memory.title === title && memory.author === author && memory.photo);
+          const message = uploadedPhoto
+            ? (photoVisible ? 'התמונה הועלתה בהצלחה ומופיעה באלבום התמונות ובסיפורים שלנו.' : 'התמונה נשמרה, אבל לא הצלחנו להציג אותה כרגע. רעננו את הדף; אם עדיין חסרה, בדקו את הגדרות האחסון ב־Supabase.')
+            : 'הזיכרון פורסם באלבום המשפחתי.';
+          uploadResult.textContent = result.storage?.warning ? `${message} התראת אחסון: השימוש הגיע ל־80% מהמכסה שהוגדרה.` : message;
+          uploadResult.hidden = false;
+          uploadResult.dataset.state = 'success';
+          showToast(result.storage?.warning ? `${message} התראת אחסון: השימוש הגיע ל־80% מהמכסה שהוגדרה.` : message);
+          if (uploadedPhoto) {
+            const galleryDetails = document.querySelector('#gallery details.gallery-details');
+            if (galleryDetails) galleryDetails.open = true;
+          }
+          document.querySelector('#gallery').scrollIntoView({ behavior: 'smooth', block: 'start' });
         } else {
-          showToast(result.storage?.warning
-            ? 'הזיכרון נשלח לבדיקה. התראת אחסון: מכסת התמונות הגיעה ל־80% והעלאות תמונה נעצרו.'
-            : 'תודה! הזיכרון נשלח לבדיקה ויופיע לאחר אישור.');
+          const message = uploadedPhoto
+            ? 'התמונה נשלחה ונשמרה, והיא תופיע באתר לאחר אישור המשפחה.'
+            : 'הזיכרון נשלח לבדיקה ויופיע לאחר אישור.';
+          uploadResult.textContent = message;
+          uploadResult.hidden = false;
+          uploadResult.dataset.state = 'pending';
+          showToast(message);
+          document.querySelector('#gallery').scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       } catch (error) {
         formMessage.textContent = error.message === 'Failed to fetch' ? 'השליחה נכשלה. בדקו את החיבור לאינטרנט ונסו שוב.' : error.message;
         if (window.turnstile && turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
       } finally {
         submitButton.disabled = false;
+        submitButton.textContent = submitButton.dataset.originalLabel || 'שמירת הזיכרון ←';
+        delete submitButton.dataset.originalLabel;
       }
       return;
     }
