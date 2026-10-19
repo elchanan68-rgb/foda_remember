@@ -27,11 +27,11 @@
 3. ב־Supabase Dashboard פותחים **Edge Functions → Secrets** ומגדירים:
 
    - `TURNSTILE_SECRET_KEY` — המפתח הסודי של Turnstile.
-   - `ALLOWED_ORIGINS` — כתובות מלאות ומדויקות, מופרדות בפסיקים, למשל `https://family.example`.
+   - `ALLOWED_ORIGINS` — כתובות origin מלאות ומדויקות, מופרדות בפסיקים. לא כוללים נתיב. עבור האתר הנוכחי יש להגדיר `https://elchanan68-rgb.github.io` (בלי `/foda_remember/`).
 
    Supabase מספקת לפונקציה את `SUPABASE_URL` ואת מפתח השרת שלה בסביבת הריצה. אין להעתיק את מפתח השרת לקובץ אתר, ל־`public-config.js`, או למאגר Git.
 
-4. מעדכנים ב־`public-config.js` את `apiUrl` לכתובת הפונקציה, למשל `https://YOUR_PROJECT_REF.supabase.co/functions/v1/family-memories`, ואת `turnstileSiteKey` למפתח האתר הציבורי של Turnstile. כתובת הפונקציה ומפתח האתר הציבורי גלויים בדפדפן בכוונה; הם אינם מפתחות סודיים.
+4. מעדכנים ב־`public-config.js` את `apiUrl` לכתובת הפונקציה: `https://vounucrbdghsuczttvlj.supabase.co/functions/v1/family-memories`, ואת `turnstileSiteKey` למפתח האתר הציבורי של Turnstile. כתובת האתר היא `https://elchanan68-rgb.github.io/foda_remember/`. כתובת הפונקציה ומפתח האתר הציבורי גלויים בדפדפן בכוונה; הם אינם מפתחות סודיים. יש להגדירם רק אחרי פריסת הפונקציה והסודות, כדי שהאתר לא ינסה להתחבר לפני שהשירות מוכן.
 
 5. מפרסמים מחדש את קובצי האתר. ב־Supabase Dashboard פותחים את הטבלה `family_memories`, בודקים סיפורים חדשים שמצבם `pending`, ומשנים למצב `approved` כדי לפרסם אותם. בחירה ב־`rejected` משאירה אותם מוסתרים.
 
