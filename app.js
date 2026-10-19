@@ -2,7 +2,7 @@
   'use strict';
 
   const STORAGE_KEY = 'foda-samina-memories-v1';
-  const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+  const MAX_UPLOAD_BYTES = 30 * 1024 * 1024;
   const MAX_IMAGE_DATA_LENGTH = 2_400_000;
   const publicConfig = window.FODA_PUBLIC_CONFIG || {};
   const apiUrl = typeof publicConfig.apiUrl === 'string' && /^https:\/\//i.test(publicConfig.apiUrl) ? publicConfig.apiUrl.replace(/\/$/, '') : '';
@@ -363,7 +363,19 @@
   }
 
   async function openImage(file) {
-    if (typeof createImageBitmap === 'function') return createImageBitmap(file);
+    if (typeof createImageBitmap === 'function') {
+      try {
+        const bitmap = await createImageBitmap(file);
+        return {
+          width: bitmap.width,
+          height: bitmap.height,
+          drawImage(context, ...args) { context.drawImage(bitmap, ...args); },
+          close() { bitmap.close(); }
+        };
+      } catch {
+        // Some mobile browsers expose createImageBitmap but cannot decode every photo format.
+      }
+    }
     return new Promise((resolve, reject) => {
       const image = new Image();
       const objectUrl = URL.createObjectURL(file);
@@ -384,6 +396,12 @@
     if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'JPG';
     if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a) return 'PNG';
     if (bytes.length >= 12 && String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP') return 'WebP';
+    if (bytes.length >= 12 && String.fromCharCode(...bytes.slice(4, 8)) === 'ftyp') {
+      const brand = String.fromCharCode(...bytes.slice(8, 12));
+      if (['heic', 'heix', 'hevc', 'hevx', 'mif1', 'msf1'].includes(brand)) return 'HEIC/HEIF';
+      if (brand === 'avif' || brand === 'avis') return 'AVIF';
+    }
+    if (bytes.length >= 6 && ['GIF87a', 'GIF89a'].includes(String.fromCharCode(...bytes.slice(0, 6)))) return 'GIF';
     return '';
   }
 
@@ -393,7 +411,7 @@
       bitmap.close();
       throw new Error('קובץ התמונה לא תקין או לא ניתן לקריאה.');
     }
-    if (bitmap.width * bitmap.height > 40_000_000 || Math.max(bitmap.width, bitmap.height) > 12_000) {
+    if (bitmap.width * bitmap.height > 55_000_000 || Math.max(bitmap.width, bitmap.height) > 12_000) {
       bitmap.close();
       throw new Error('התמונה גדולה מדי לעיבוד.');
     }
@@ -492,7 +510,7 @@
     }
     if (file.size > MAX_UPLOAD_BYTES) {
       clearPhoto();
-      setPhotoStatus('התמונה גדולה מדי. אפשר לבחור תמונה עד 8MB.', 'error');
+      setPhotoStatus('התמונה גדולה מדי. אפשר לבחור תמונה עד 30MB.', 'error');
       return;
     }
     setPhotoStatus('בודקים את סוג התמונה ומכינים תצוגה מקדימה…', 'checking');
@@ -519,14 +537,16 @@
     event.preventDefault();
     formMessage.textContent = '';
     const data = new FormData(form);
-    const title = cleanText(data.get('title'), 90);
-    const author = cleanText(data.get('author'), 50);
+    const titleInput = cleanText(data.get('title'), 90);
+    const authorInput = cleanText(data.get('author'), 50);
     const story = cleanText(data.get('story'), 2500);
     const category = allowedCategories.has(data.get('category')) ? data.get('category') : 'family';
-    if (!title || !author || !story) {
-      formMessage.textContent = 'כדי לשמור, צריך למלא כותרת, שם וסיפור.';
+    if (!pendingPhoto && !story) {
+      formMessage.textContent = 'כדי לשמור, צריך לצרף תמונה או לכתוב סיפור קצר.';
       return;
     }
+    const title = titleInput || (pendingPhoto ? `תמונה – ${categoryNames[category]}` : 'זיכרון משפחתי');
+    const author = authorInput || 'בן/בת משפחה';
     if (remoteMode) {
       if (!turnstileSiteKey || !window.turnstile || turnstileWidgetId === null) {
         formMessage.textContent = 'החיבור המשותף עדיין לא מוכן. נסו שוב מאוחר יותר.';

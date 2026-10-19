@@ -133,14 +133,14 @@
   <dialog class="memory-dialog" id="memoryDialog" aria-labelledby="dialogTitle">
     <form id="memoryForm" novalidate>
       <div class="dialog-heading"><div><p class="eyebrow"><span></span> מוסיפים לסיפור המשפחתי</p><h2 id="dialogTitle">משתפים זיכרון</h2></div><button class="icon-button" id="closeDialog" type="button" aria-label="סגירה">×</button></div>
-      <label class="form-label" for="memoryTitle">כותרת קצרה <span>*</span><input id="memoryTitle" name="title" maxlength="90" required placeholder="למשל: הריח של החלות בשישי"></label>
-      <label class="form-label" for="memoryAuthor">מי משתף/ת? <span>*</span><input id="memoryAuthor" name="author" maxlength="50" required placeholder="השם שלך"></label>
+      <label class="form-label" for="memoryTitle">כותרת קצרה <small>(לא חובה)</small><input id="memoryTitle" name="title" maxlength="90" placeholder="למשל: הריח של החלות בשישי"></label>
+      <label class="form-label" for="memoryAuthor">מי משתף/ת? <small>(לא חובה)</small><input id="memoryAuthor" name="author" maxlength="50" placeholder="השם שלך"></label>
       <label class="form-label" for="memoryCategory">לאיזה אלבום זה שייך?
         <select id="memoryCategory" name="category"><option value="family">רגעים משפחתיים</option><option value="food">מהמטבח של סבתא</option><option value="wisdom">מילים של סבתא</option><option value="celebration">שמחות וחגים</option></select>
       </label>
-      <label class="form-label" for="memoryStory">הסיפור שלך <span>*</span><textarea id="memoryStory" name="story" rows="5" maxlength="2500" required placeholder="ספרו לנו על הרגע, המקום, הריח או המילים שנשארו איתכם…"></textarea><span class="field-hint"><span id="storyLength">0</span>/2500 תווים</span></label>
+      <label class="form-label" for="memoryStory">הסיפור שלך <small>(לא חובה אם מצרפים תמונה)</small><textarea id="memoryStory" name="story" rows="5" maxlength="2500" placeholder="ספרו לנו על הרגע, המקום, הריח או המילים שנשארו איתכם…"></textarea><span class="field-hint"><span id="storyLength">0</span>/2500 תווים</span></label>
       <label class="form-label" for="approvalCode">קוד לפרסום מיידי <small>(לא חובה; בלי קוד הזיכרון ימתין לאישור)</small><input id="approvalCode" name="approvalCode" type="password" maxlength="128" autocomplete="off" placeholder="הזינו קוד משפחתי"></label>
-      <label class="upload-area" for="memoryPhoto"><span class="upload-icon" aria-hidden="true">↥</span><span><strong>מצרפים תמונה</strong><small>JPG, PNG או WebP · עד 8MB · אותיות גדולות או קטנות בשם הקובץ מתקבלות</small></span><input id="memoryPhoto" name="photo" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"></label>
+      <label class="upload-area" for="memoryPhoto"><span class="upload-icon" aria-hidden="true">↥</span><span><strong>מצרפים תמונה</strong><small>אפשר להעלות תמונה בלבד לפי נושא · תמונות iPhone יכווצו ל־JPG · עד 30MB לפני כיווץ</small></span><input id="memoryPhoto" name="photo" type="file" accept="image/*,.heic,.heif,.avif"></label>
       <p class="photo-status" id="photoStatus" role="status" aria-live="polite"></p>
       <div class="photo-preview" id="photoPreview" hidden><img id="previewImage" alt="תצוגה מקדימה של התמונה שבחרתם"><span id="previewName"></span><button class="remove-photo" id="removePhoto" type="button" aria-label="הסרת התמונה">×</button></div>
       <div class="captcha-wrap" id="captchaWrap" hidden><div id="turnstileWidget"></div></div>
