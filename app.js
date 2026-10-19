@@ -23,6 +23,7 @@
   const form = document.querySelector('#memoryForm');
   const photoInput = document.querySelector('#memoryPhoto');
   const photoStatus = document.querySelector('#photoStatus');
+  const storageWarning = document.querySelector('#storageWarning');
   const preview = document.querySelector('#photoPreview');
   const previewImage = document.querySelector('#previewImage');
   const previewName = document.querySelector('#previewName');
@@ -40,6 +41,16 @@
   let toastTimer;
   let memories = loadMemories();
   let remoteMode = Boolean(apiUrl);
+  let storageWarningShown = false;
+
+  function updateStorageWarning(storage) {
+    const warning = storage?.warning === true;
+    storageWarning.hidden = !warning;
+    if (warning && !storageWarningShown) {
+      storageWarningShown = true;
+      showToast('התראת אחסון: מכסת התמונות הגיעה ל־80%.');
+    }
+  }
 
   function setPhotoStatus(message, state = '') {
     photoStatus.textContent = message;
@@ -158,6 +169,7 @@
       if (!response.ok) throw new Error('השרת החזיר שגיאה.');
       const payload = await response.json();
       memories = normalizeRemoteMemories(payload.memories);
+      updateStorageWarning(payload.storage);
       setPrivacyNote('הסיפורים והתמונות המשותפים מוצגים כאן. שליחות חדשות יפורסמו לפי הגדרות האישור של המשפחה.');
       render();
     } catch {
@@ -453,6 +465,7 @@
           body: upload
         });
         const result = await response.json().catch(() => ({}));
+        updateStorageWarning(result.storage);
         if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'לא הצלחנו לשלוח את הזיכרון.');
         form.reset();
         storyLength.textContent = '0';
@@ -460,10 +473,14 @@
         dialog.close();
         window.turnstile.reset(turnstileWidgetId);
         if (result.pending === false) {
-          showToast('תודה! הזיכרון פורסם באלבום המשפחתי.');
+          showToast(result.storage?.warning
+            ? 'הזיכרון פורסם. התראת אחסון: מכסת התמונות הגיעה ל־80% והעלאות תמונה נעצרו.'
+            : 'תודה! הזיכרון פורסם באלבום המשפחתי.');
           await loadRemoteMemories();
         } else {
-          showToast('תודה! הזיכרון נשלח לבדיקה ויופיע לאחר אישור.');
+          showToast(result.storage?.warning
+            ? 'הזיכרון נשלח לבדיקה. התראת אחסון: מכסת התמונות הגיעה ל־80% והעלאות תמונה נעצרו.'
+            : 'תודה! הזיכרון נשלח לבדיקה ויופיע לאחר אישור.');
         }
       } catch (error) {
         formMessage.textContent = error.message === 'Failed to fetch' ? 'השליחה נכשלה. בדקו את החיבור לאינטרנט ונסו שוב.' : error.message;
