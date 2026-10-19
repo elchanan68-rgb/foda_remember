@@ -101,7 +101,6 @@
 
   function openBiographyEditor() {
     bioFormMessage.textContent = '';
-    bioForm.elements.namedItem('editCode').value = '';
     if (!remoteMode) {
       showToast('עריכת קורות החיים זמינה לאחר חיבור האתר לאחסון המשותף.');
       return;
@@ -429,7 +428,6 @@
   bioDialog.addEventListener('click', (event) => {
     if (event.target === bioDialog) bioDialog.close();
   });
-  bioDialog.addEventListener('close', () => { bioForm.elements.namedItem('editCode').value = ''; });
   bioForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     bioFormMessage.textContent = '';
@@ -440,11 +438,10 @@
       childhood: String(values.get('childhood') || '').trim(),
       parents: String(values.get('parents') || '').trim(),
       aliyah: String(values.get('aliyah') || '').trim(),
-      fullStory: String(values.get('fullStory') || '').trim(),
-      editCode: String(values.get('editCode') || '')
+      fullStory: String(values.get('fullStory') || '').trim()
     };
-    if (!biography.summary || !biography.fullStory || !biography.editCode) {
-      bioFormMessage.textContent = 'צריך למלא תקציר, סיפור מלא וקוד עריכה.';
+    if (!biography.summary || !biography.fullStory) {
+      bioFormMessage.textContent = 'צריך למלא תקציר קצר וסיפור מלא.';
       return;
     }
     bioSaveButton.disabled = true;

@@ -153,14 +153,13 @@
   <dialog class="memory-dialog bio-dialog" id="bioDialog" aria-labelledby="bioDialogTitle">
     <form id="bioForm" novalidate>
       <div class="dialog-heading"><div><p class="eyebrow"><span></span> מנהלים את הסיפור המשפחתי</p><h2 id="bioDialogTitle">עריכת קורות החיים</h2></div><button class="icon-button" type="button" data-close-bio-editor aria-label="סגירה">×</button></div>
-      <p class="bio-editor-help">מלאו רק פרטים שאתם מכירים או שמעתם במשפחה. השינויים יופיעו באתר לכל בני המשפחה לאחר השמירה.</p>
+      <p class="bio-editor-help">העריכה פתוחה לכל מי שמגיע לאתר. מלאו רק פרטים שאתם מכירים או שמעתם במשפחה; השינויים יופיעו באתר לכל המבקרים לאחר השמירה.</p>
       <label class="form-label" for="bioSummaryInput">תקציר קצר <span>*</span><textarea id="bioSummaryInput" name="summary" rows="4" maxlength="1200" required placeholder="כמה משפטים על מי הייתה סבתא פודה ומה חשוב לזכור ממסע חייה"></textarea></label>
       <label class="form-label" for="bioBirthplaceInput">איפה נולדה?<input id="bioBirthplaceInput" name="birthplace" maxlength="240" placeholder="יישוב, אזור או מדינה"></label>
       <label class="form-label" for="bioChildhoodInput">איפה גדלה ואיך נראו חייה בילדות?<textarea id="bioChildhoodInput" name="childhood" rows="3" maxlength="1200"></textarea></label>
       <label class="form-label" for="bioParentsInput">מי היו הוריה ומה ידוע על משפחתה?<textarea id="bioParentsInput" name="parents" rows="3" maxlength="1200"></textarea></label>
       <label class="form-label" for="bioAliyahInput">המסע והעלייה לארץ<textarea id="bioAliyahInput" name="aliyah" rows="4" maxlength="1800" placeholder="שנים, מקומות, תחנות בדרך וזיכרונות שסופרו במשפחה"></textarea></label>
       <label class="form-label" for="bioFullStoryInput">הסיפור המלא <span>*</span><textarea id="bioFullStoryInput" name="fullStory" rows="8" maxlength="12000" required placeholder="כתבו את קורות חייה ברצף: הילדות, המשפחה, העלייה, החיים בארץ, המנהגים והמורשת שהשאירה"></textarea></label>
-      <label class="form-label" for="bioEditCode">קוד עריכה משפחתי <span>*</span><small>הקוד מאומת מול סוד Supabase, אינו נשמר באתר, ואל תשלחו אותו בצ׳אט.</small><input id="bioEditCode" name="editCode" type="password" maxlength="256" autocomplete="off" required></label>
       <p class="form-message" id="bioFormMessage" role="alert"></p>
       <div class="dialog-actions"><button class="button" type="submit" id="bioSaveButton">שמירת קורות החיים <span aria-hidden="true">←</span></button><button class="button button-quiet" type="button" data-close-bio-editor>ביטול</button></div>
     </form>
