@@ -156,6 +156,13 @@
     return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
   }
 
+  function encodeSecretHeader(value) {
+    const bytes = new TextEncoder().encode(value);
+    let binary = '';
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return `utf8-base64:${btoa(binary)}`;
+  }
+
   function makeId() {
     return globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
@@ -229,7 +236,7 @@
     retryLoadButton.hidden = true;
     if (!memories.length) grid.replaceChildren(...Array.from({ length: 3 }, () => element('div', 'memory-skeleton')));
     try {
-      const headers = managerKey ? { 'x-manager-code': managerKey } : {};
+      const headers = managerKey ? { 'x-manager-code': encodeSecretHeader(managerKey) } : {};
       const response = await fetch(apiUrl, { method: 'GET', mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error', headers });
       if (!response.ok) throw new Error('השרת החזיר שגיאה.');
       const payload = await response.json();
@@ -649,7 +656,7 @@
         credentials: 'omit',
         cache: 'no-store',
         redirect: 'error',
-        headers: { 'Content-Type': 'application/json', 'x-family-code': familyCode },
+        headers: { 'Content-Type': 'application/json', 'x-family-code': encodeSecretHeader(familyCode) },
         body: JSON.stringify(biography)
       });
       const result = await response.json().catch(() => ({}));
@@ -804,7 +811,7 @@
     try {
       const response = await fetch(apiUrl, {
         method: 'DELETE', mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error',
-        headers: { 'Content-Type': 'application/json', 'x-manager-code': managerCode },
+        headers: { 'Content-Type': 'application/json', 'x-manager-code': encodeSecretHeader(managerCode) },
         body: JSON.stringify({ id: memory.id })
       });
       const result = await response.json().catch(() => ({}));
@@ -855,7 +862,7 @@
     try {
       const response = await fetch(apiUrl, {
         method: 'PATCH', mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error',
-        headers: { 'Content-Type': 'application/json', 'x-manager-code': managerCode },
+        headers: { 'Content-Type': 'application/json', 'x-manager-code': encodeSecretHeader(managerCode) },
         body: JSON.stringify({ id: memory.id, status })
       });
       const result = await response.json().catch(() => ({}));
@@ -874,7 +881,7 @@
     try {
       const response = await fetch(apiUrl, {
         method: 'PATCH', mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error',
-        headers: { 'Content-Type': 'application/json', 'x-manager-code': managerCode },
+        headers: { 'Content-Type': 'application/json', 'x-manager-code': encodeSecretHeader(managerCode) },
         body: JSON.stringify({ id: photo.memory.id, photoId: photo.photoId, action })
       });
       const result = await response.json().catch(() => ({}));

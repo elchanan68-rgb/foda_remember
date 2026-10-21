@@ -95,3 +95,29 @@ test('invalid image bytes are rejected before a memory can be saved', async ({ p
   await page.locator('#memoryForm button[type="submit"]').click();
   await expect(page.locator('#formMessage')).toContainText('צריך לצרף תמונה או לכתוב סיפור קצר.');
 });
+
+test('manager login sends non-ASCII codes as valid UTF-8 header text', async ({ page }) => {
+  const code = 'פודה🔑קוד';
+  let sentManagerHeader = '';
+  await page.unroute('**/public-config.js*');
+  await page.route('**/public-config.js*', (route) => route.fulfill({
+    status: 200,
+    contentType: 'text/javascript',
+    body: 'window.FODA_PUBLIC_CONFIG = Object.freeze({ apiUrl: "https://api.test/family-memories", turnstileSiteKey: "test-site-key" });'
+  }));
+  await page.route('https://api.test/family-memories', async (route) => {
+    const headers = route.request().headers();
+    sentManagerHeader = headers['x-manager-code'] || '';
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ manager: Boolean(sentManagerHeader), memories: [], biography: null, storage: { warning: false, percent: 0 } })
+    });
+  });
+  await page.reload();
+  await page.locator('#managerToggle').click();
+  await page.locator('#managerCodeInput').fill(code);
+  await page.locator('#managerForm button[type="submit"]').click();
+  await expect(page.locator('#managerDialog')).not.toHaveAttribute('open', '');
+  await expect.poll(() => sentManagerHeader).toBe(`utf8-base64:${Buffer.from(code, 'utf8').toString('base64')}`);
+});

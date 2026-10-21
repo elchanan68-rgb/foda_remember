@@ -115,6 +115,18 @@ async function sameSecret(candidate: string, expected: string): Promise<boolean>
   return difference === 0;
 }
 
+function decodeSecretHeader(value: string): string {
+  const prefix = 'utf8-base64:';
+  if (!value.startsWith(prefix)) return value;
+  try {
+    const binary = atob(value.slice(prefix.length));
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return '';
+  }
+}
+
 async function readLimitedBody(request: Request, maxBytes: number): Promise<Uint8Array | null> {
   if (!request.body) return new Uint8Array();
   const reader = request.body.getReader();
@@ -167,7 +179,7 @@ async function verifyTurnstile(token: string, origin: string): Promise<boolean> 
 }
 
 async function managerAuth(request: Request, headers: HeadersInit, requireCode = false): Promise<{ authorized: boolean; error?: Response }> {
-  const suppliedCode = request.headers.get('x-manager-code') ?? '';
+  const suppliedCode = decodeSecretHeader(request.headers.get('x-manager-code') ?? '');
   if (!suppliedCode) return { authorized: false, ...(requireCode ? { error: json({ error: 'נדרש קוד מנהל.' }, 403, headers) } : {}) };
   const ip = clientIp(request);
   if (!ip) return { authorized: false, error: json({ error: 'לא ניתן לזהות את החיבור. נסו שוב.' }, 400, headers) };
@@ -294,7 +306,7 @@ async function saveBiography(request: Request, headers: HeadersInit): Promise<Re
   // Editing the biography requires the family code, so a stranger cannot overwrite it.
   const familyCode = Deno.env.get('FAMILY_AUTO_APPROVE_CODE') ?? '';
   if (!familyCode) return json({ error: 'עריכת קורות החיים עדיין לא הוגדרה. יש להגדיר קוד משפחתי במערכת.' }, 503, headers);
-  if (!await sameSecret(request.headers.get('x-family-code') ?? '', familyCode)) {
+  if (!await sameSecret(decodeSecretHeader(request.headers.get('x-family-code') ?? ''), familyCode)) {
     const { data: failureData, error: failureError } = await admin.rpc('record_family_code_failure', { p_ip_hash: ipHash });
     if (failureError) return json({ error: 'לא ניתן לרשום ניסיון קוד שגוי. נסו שוב.' }, 503, headers);
     const failure = Array.isArray(failureData) ? failureData[0] : failureData;
