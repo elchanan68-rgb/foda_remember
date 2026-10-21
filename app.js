@@ -13,31 +13,25 @@
     food: 'מהמטבח של סבתא',
     wisdom: 'מילים של סבתא',
     celebration: 'שמחות וחגים',
-    photos: 'תמונות כלליות'
+    photos: 'אלבום תמונות'
   };
 
   const grid = document.querySelector('#memoryGrid');
   const gallery = document.querySelector('#galleryGrid');
-  const uploadResult = document.querySelector('#uploadResult');
-  const managerModeButton = document.querySelector('#managerModeButton');
-  const managerDialog = document.querySelector('#managerDialog');
-  const managerForm = document.querySelector('#managerForm');
-  const managerDeleteCode = document.querySelector('#managerDeleteCode');
-  const managerFormMessage = document.querySelector('#managerFormMessage');
-  const moreMemoriesButton = document.querySelector('#moreMemories');
-  const morePhotosButton = document.querySelector('#morePhotos');
+  const loadStatus = document.querySelector('#loadStatus');
+  const loadMessage = document.querySelector('#loadMessage');
+  const retryLoadButton = document.querySelector('#retryLoad');
   const count = document.querySelector('#memoryCount');
   const search = document.querySelector('#searchMemories');
   const dialog = document.querySelector('#memoryDialog');
   const bioDialog = document.querySelector('#bioDialog');
+  const managerDialog = document.querySelector('#managerDialog');
   const bioForm = document.querySelector('#bioForm');
   const form = document.querySelector('#memoryForm');
   const photoInput = document.querySelector('#memoryPhoto');
   const photoStatus = document.querySelector('#photoStatus');
   const storageWarning = document.querySelector('#storageWarning');
   const preview = document.querySelector('#photoPreview');
-  const previewImage = document.querySelector('#previewImage');
-  const previewName = document.querySelector('#previewName');
   const formMessage = document.querySelector('#formMessage');
   const privacyNote = document.querySelector('#privacyNote');
   const captchaWrap = document.querySelector('#captchaWrap');
@@ -47,10 +41,15 @@
   const submitButton = form.querySelector('[type="submit"]');
   const bioSaveButton = document.querySelector('#bioSaveButton');
   const bioFormMessage = document.querySelector('#bioFormMessage');
+  const managerForm = document.querySelector('#managerForm');
+  const managerCodeInput = document.querySelector('#managerCodeInput');
+  const managerFormMessage = document.querySelector('#managerFormMessage');
   let activeFilter = 'all';
-  let visibleMemoryLimit = 6;
-  let visiblePhotoLimit = 8;
-  let pendingPhoto = '';
+  let pendingPhotos = [];
+  const MAX_PHOTOS = 10;
+  let lastRemoteLoad = 0;
+  let refreshAt = 0;
+  let managerCode = '';
   let photoSelectionToken = 0;
   let turnstileWidgetId = null;
   let toastTimer;
@@ -58,7 +57,6 @@
   let remoteMode = Boolean(apiUrl);
   let storageWarningShown = false;
   let currentBiography = null;
-  let managerCode = '';
 
   function updateStorageWarning(storage) {
     const warning = storage?.warning === true;
@@ -124,27 +122,9 @@
   function setupPortraitFallback() {
     const image = document.querySelector('#heroPortrait');
     const fallback = document.querySelector('#portraitFallback');
-    const candidates = [
-      'assets/foda-portrait.jpg', 'assets/Foda-portrait.jpg', 'assets/FODA-PORTRAIT.JPG',
-      'assets/foda-portrait.JPG', 'assets/Foda-portrait.JPG', 'assets/FODA-PORTRAIT.jpg',
-      'assets/foda-portrait.jpeg', 'assets/Foda-portrait.jpeg', 'Assets/foda-portrait.jpg',
-      'Assets/Foda-portrait.jpg', 'Assets/FODA-PORTRAIT.JPG'
-    ];
-    let candidateIndex = 0;
-    image.onerror = () => {
-      candidateIndex += 1;
-      if (candidateIndex < candidates.length) {
-        image.src = candidates[candidateIndex];
-      } else {
-        image.hidden = true;
-        fallback.hidden = false;
-      }
-    };
-    image.onload = () => {
-      image.hidden = false;
-      fallback.hidden = true;
-    };
-    if (image.complete && image.naturalWidth === 0) image.onerror();
+    const missing = () => { image.hidden = true; fallback.hidden = false; };
+    image.addEventListener('error', missing);
+    if (image.complete && image.naturalWidth === 0) missing();
   }
 
   function loadMemories() {
@@ -153,18 +133,20 @@
       if (!Array.isArray(parsed)) return [];
       return parsed.slice(0, 300).map((item) => {
         if (!item || typeof item !== 'object') return null;
-        const photo = typeof item.photo === 'string' && item.photo.length <= MAX_IMAGE_DATA_LENGTH && /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(item.photo) ? item.photo : '';
+        const rawPhotos = Array.isArray(item.photos) ? item.photos : [item.photo];
+        const photos = rawPhotos.filter((value) => typeof value === 'string' && value.length <= MAX_IMAGE_DATA_LENGTH && /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(value)).slice(0, MAX_PHOTOS);
         const category = allowedCategories.has(item.category) ? item.category : 'family';
         return {
           id: typeof item.id === 'string' && item.id.length <= 80 ? item.id : makeId(),
-          title: cleanText(item.title, 90),
-          author: cleanText(item.author, 50),
+          title: cleanText(item.title, 90) || (photos.length ? 'תמונה משפחתית' : 'זיכרון משפחתי'),
+          author: cleanText(item.author, 50) || 'בן/בת משפחה',
           story: cleanText(item.story, 2500),
           category,
-          photo,
+          photos,
+          thumbnailPhotos: Array.isArray(item.thumbnailPhotos) ? item.thumbnailPhotos.filter((value) => typeof value === 'string' && value.length <= MAX_IMAGE_DATA_LENGTH).slice(0, MAX_PHOTOS) : photos,
           createdAt: typeof item.createdAt === 'string' && item.createdAt.length <= 40 ? item.createdAt : new Date().toISOString()
         };
-      }).filter((item) => item && item.title && item.author && item.story);
+      }).filter((item) => item && (item.story || item.photos.length));
     } catch {
       return [];
     }
@@ -195,7 +177,7 @@
     toast.textContent = message;
     toast.classList.add('visible');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove('visible'), 8500);
+    toastTimer = setTimeout(() => toast.classList.remove('visible'), 4200);
   }
 
   function trustedPhotoUrl(value) {
@@ -209,6 +191,16 @@
     }
   }
 
+  function remotePhotos(row) {
+    const urls = Array.isArray(row.photoUrls) ? row.photoUrls : [row.photoUrl];
+    return urls.map(trustedPhotoUrl).filter(Boolean).slice(0, MAX_PHOTOS);
+  }
+
+  function remoteThumbnails(row, photos) {
+    const urls = Array.isArray(row.thumbnailUrls) ? row.thumbnailUrls : [];
+    return photos.map((photo, index) => trustedPhotoUrl(urls[index]) || photo);
+  }
+
   function normalizeRemoteMemories(rows) {
     if (!Array.isArray(rows)) return [];
     return rows.slice(0, 300).map((row) => {
@@ -216,50 +208,75 @@
       const category = allowedCategories.has(row.category) ? row.category : 'family';
       return {
         id: cleanText(row.id, 80) || makeId(),
-        title: cleanText(row.title, 90),
-        author: cleanText(row.author, 50),
+        title: cleanText(row.title, 90) || (remotePhotos(row).length ? 'תמונה משפחתית' : 'זיכרון משפחתי'),
+        author: cleanText(row.author, 50) || 'בן/בת משפחה',
         story: cleanText(row.story, 2500),
         category,
-        photo: trustedPhotoUrl(row.photoUrl),
+        status: row.status === 'pending' ? 'pending' : 'approved',
+        photos: remotePhotos(row),
+        thumbnailPhotos: remoteThumbnails(row, remotePhotos(row)),
+        photoIds: Array.isArray(row.photoIds) ? row.photoIds.slice(0, MAX_PHOTOS).map((id) => typeof id === 'string' ? id : '') : [],
         createdAt: typeof row.createdAt === 'string' && row.createdAt.length <= 40 ? row.createdAt : new Date().toISOString()
       };
-    // Keep approved photo-only memories; they have no story text by design.
-    }).filter((row) => row && row.title && row.author && (row.story || row.photo));
+    }).filter((row) => row && (row.story || row.photos.length));
   }
 
-  async function loadRemoteMemories() {
-    if (!apiUrl) return false;
+  async function loadRemoteMemories(managerKey = managerCode) {
+    if (!apiUrl) return;
+    loadStatus.hidden = false;
+    loadStatus.dataset.state = 'loading';
+    loadMessage.textContent = 'טוענים את סיפורי המשפחה…';
+    retryLoadButton.hidden = true;
+    if (!memories.length) grid.replaceChildren(...Array.from({ length: 3 }, () => element('div', 'memory-skeleton')));
     try {
-      const response = await fetch(apiUrl, { method: 'GET', mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error' });
+      const headers = managerKey ? { 'x-manager-code': managerKey } : {};
+      const response = await fetch(apiUrl, { method: 'GET', mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error', headers });
       if (!response.ok) throw new Error('השרת החזיר שגיאה.');
       const payload = await response.json();
+      if (managerKey && payload.manager !== true) throw new Error('קוד המנהל שגוי.');
+      lastRemoteLoad = Date.now();
       memories = normalizeRemoteMemories(payload.memories);
       renderBiography(payload.biography);
       updateStorageWarning(payload.storage);
       setPrivacyNote('הסיפורים והתמונות המשותפים מוצגים כאן. שליחות חדשות יפורסמו לפי הגדרות האישור של המשפחה.');
       render();
+      loadStatus.hidden = true;
       return true;
-    } catch {
+    } catch (error) {
       setPrivacyNote('לא הצלחנו להתחבר לאלבום המשותף. כרגע מוצגים רק זיכרונות שנשמרו בדפדפן הזה.');
+      loadStatus.dataset.state = 'error';
+      loadMessage.textContent = 'לא הצלחנו לטעון את האלבום המשותף. בדקו את החיבור ונסו שוב.';
+      retryLoadButton.hidden = false;
+      if (managerKey) throw error;
       return false;
     }
   }
 
+  retryLoadButton.addEventListener('click', () => loadRemoteMemories());
+
+  let turnstilePromise = null;
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = src;
+      script.async = true;
+      script.onload = resolve;
+      script.onerror = () => { script.remove(); reject(new Error('script')); };
+      document.head.append(script);
+    });
+  }
+
   function loadTurnstile() {
     if (window.turnstile) return Promise.resolve();
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('טעינת בדיקת האבטחה נכשלה.')), 12000);
-      window.fodaTurnstileReady = () => { clearTimeout(timer); resolve(); };
-      let script = document.querySelector('#turnstileApi');
-      if (!script) {
-        script = document.createElement('script');
-        script.id = 'turnstileApi';
-        script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=fodaTurnstileReady';
-        script.async = true;
-        script.onerror = () => { clearTimeout(timer); reject(new Error('טעינת בדיקת האבטחה נכשלה.')); };
-        document.head.append(script);
-      }
-    });
+    if (!turnstilePromise) {
+      turnstilePromise = new Promise((resolve, reject) => {
+        const timer = setTimeout(() => { turnstilePromise = null; reject(new Error('timeout')); }, 12000);
+        window.fodaTurnstileReady = () => { clearTimeout(timer); resolve(); };
+        loadScript('https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=fodaTurnstileReady')
+          .catch((error) => { clearTimeout(timer); turnstilePromise = null; reject(error); });
+      });
+    }
+    return turnstilePromise;
   }
 
   async function prepareTurnstile() {
@@ -273,7 +290,7 @@
     try {
       await loadTurnstile();
       if (turnstileWidgetId === null) {
-        turnstileWidgetId = window.turnstile.render('#turnstileWidget', { sitekey: turnstileSiteKey, theme: 'light' });
+        turnstileWidgetId = window.turnstile.render('#turnstileWidget', { sitekey: turnstileSiteKey, theme: 'light', size: 'flexible' });
       } else {
         window.turnstile.reset(turnstileWidgetId);
       }
@@ -305,30 +322,46 @@
 
   function createMemoryCard(memory) {
     const card = element('article', 'memory-card');
-    if (memory.photo) {
+    if (memory.photos.length) {
+      const open = element('button', 'memory-photo-button');
+      open.type = 'button';
+      open.setAttribute('aria-label', `צפייה בתמונות: ${memory.title}`);
       const image = element('img', 'memory-photo');
-      image.src = memory.photo;
+      image.src = memory.thumbnailPhotos?.[0] || memory.photos[0];
       image.alt = `תמונה לסיפור: ${memory.title}`;
       image.loading = 'lazy';
-      image.addEventListener('error', () => {
-        image.replaceWith(element('div', 'photo-unavailable', 'התמונה נשמרה אך לא נטענה. נסו לרענן את הדף.'));
-      }, { once: true });
-      card.append(image);
+      image.addEventListener('error', refreshSoon);
+      open.append(image);
+      if (memory.photos.length > 1) open.append(element('span', 'photo-count', `${memory.photos.length} תמונות`));
+      open.addEventListener('click', () => openLightbox(memory.photos.map((photo) => ({ photo, title: memory.title, author: memory.author })), 0));
+      card.append(open);
     }
     const body = element('div', 'memory-card-body');
     body.append(element('span', 'memory-category', categoryNames[memory.category]));
+    if (memory.status === 'pending' && managerCode) body.append(element('span', 'moderation-badge', 'ממתין לאישור'));
     body.append(element('h3', '', memory.title));
     body.append(element('p', 'memory-story', memory.story));
     const byline = element('div', 'memory-byline', memory.author);
     const date = new Date(memory.createdAt);
     byline.append(element('time', 'memory-date', Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'short', year: 'numeric' }).format(date)));
-    body.append(byline);
-    if (managerCode) {
-      const deleteButton = element('button', 'delete-memory', 'מחיקת הזיכרון');
-      deleteButton.type = 'button';
-      deleteButton.dataset.deleteMemory = memory.id;
-      body.append(deleteButton);
+    if (managerCode && remoteMode) {
+      if (memory.status === 'pending') {
+        const actions = element('div', 'moderation-actions');
+        const approve = element('button', 'moderation-approve', 'אישור ופרסום');
+        approve.type = 'button';
+        approve.addEventListener('click', () => moderateMemory(memory, 'approved'));
+        const reject = element('button', 'moderation-reject', 'דחייה');
+        reject.type = 'button';
+        reject.addEventListener('click', () => moderateMemory(memory, 'rejected'));
+        actions.append(approve, reject);
+        body.append(actions);
+      }
+      const remove = element('button', 'delete-memory', 'מחיקה');
+      remove.type = 'button';
+      remove.addEventListener('click', () => deleteMemory(memory));
+      byline.append(remove);
     }
+    body.append(byline);
     card.append(body);
     return card;
   }
@@ -336,7 +369,7 @@
   function render() {
     const query = search.value.trim().toLocaleLowerCase('he');
     const visible = memories.filter((memory) => {
-      const matchesFilter = activeFilter === 'all' || (activeFilter === 'photos' ? Boolean(memory.photo) : memory.category === activeFilter);
+      const matchesFilter = activeFilter === 'all' || memory.category === activeFilter;
       const searchable = `${memory.title} ${memory.author} ${memory.story} ${categoryNames[memory.category]}`.toLocaleLowerCase('he');
       return matchesFilter && (!query || searchable.includes(query));
     });
@@ -344,11 +377,17 @@
     count.textContent = String(memories.length);
     grid.replaceChildren();
     if (!visible.length) grid.append(makeEmptyState());
-    else visible.slice(0, visibleMemoryLimit).forEach((memory) => grid.append(createMemoryCard(memory)));
-    moreMemoriesButton.hidden = visible.length <= visibleMemoryLimit;
+    else visible.forEach((memory) => grid.append(createMemoryCard(memory)));
 
     gallery.replaceChildren();
-    const photos = memories.filter((memory) => memory.photo);
+    const photos = memories.flatMap((memory) => memory.photos.map((photo, index) => ({
+      photo,
+      thumbnail: memory.thumbnailPhotos?.[index] || photo,
+      title: memory.title,
+      author: memory.author,
+      memory,
+      photoId: memory.photoIds?.[index] || ''
+    })));
     if (!photos.length) {
       const empty = element('div', 'gallery-empty');
       empty.append(element('strong', '', 'התמונות המשפחתיות עוד יגיעו'));
@@ -356,28 +395,35 @@
       gallery.append(empty);
       return;
     }
-    photos.slice(0, visiblePhotoLimit).forEach((memory) => {
+    photos.forEach((memory, index) => {
       const figure = element('figure', 'gallery-item');
+      const open = element('button', 'gallery-open');
+      open.type = 'button';
+      open.setAttribute('aria-label', `פתיחת תמונה: ${memory.title}`);
       const image = element('img');
-      image.src = memory.photo;
+      image.src = memory.thumbnail;
       image.alt = memory.title;
       image.loading = 'lazy';
-      image.addEventListener('error', () => {
-        figure.replaceChildren(element('div', 'gallery-image-error', 'התמונה לא נטענה. רעננו את הדף כדי לנסות שוב.'));
-      }, { once: true });
+      image.addEventListener('error', refreshSoon);
       const caption = element('figcaption');
       caption.append(element('strong', '', memory.title));
       caption.append(element('span', '', `מאת ${memory.author}`));
-      figure.append(image, caption);
-      if (managerCode) {
-        const deleteButton = element('button', 'delete-memory gallery-delete', 'מחיקה');
-        deleteButton.type = 'button';
-        deleteButton.dataset.deleteMemory = memory.id;
-        figure.append(deleteButton);
+      open.append(image, caption);
+      open.addEventListener('click', () => openLightbox(photos.map(({ photo, title, author }) => ({ photo, title, author })), index));
+      figure.append(open);
+      if (managerCode && remoteMode && memory.photoId) {
+        const controls = element('div', 'photo-admin-actions');
+        const cover = element('button', 'photo-cover-button', 'תמונה ראשית');
+        cover.type = 'button';
+        cover.addEventListener('click', () => photoAction(memory, 'set_cover'));
+        const remove = element('button', 'photo-remove-button', 'מחיקת תמונה');
+        remove.type = 'button';
+        remove.addEventListener('click', () => photoAction(memory, 'delete_photo'));
+        controls.append(cover, remove);
+        figure.append(controls);
       }
       gallery.append(figure);
     });
-    morePhotosButton.hidden = photos.length <= visiblePhotoLimit;
   }
 
   function openDialog() {
@@ -389,40 +435,78 @@
 
   function clearPhoto() {
     photoSelectionToken += 1;
-    pendingPhoto = '';
+    pendingPhotos.forEach((item) => item.source.close?.());
+    pendingPhotos = [];
     photoInput.value = '';
-    previewImage.removeAttribute('src');
-    previewName.textContent = '';
-    preview.hidden = true;
+    renderPhotoGrid();
     setPhotoStatus('', '');
   }
 
-  async function openImage(file) {
+  function renderPhotoGrid() {
+    preview.replaceChildren();
+    preview.hidden = !pendingPhotos.length;
+    pendingPhotos.forEach((item) => {
+      const thumb = element('figure', 'photo-thumb');
+      const image = element('img');
+      image.src = item.dataUrl;
+      image.alt = `תצוגה מקדימה: ${item.name}`;
+      const rotate = element('button', 'thumb-button thumb-rotate', '↻');
+      rotate.type = 'button';
+      rotate.setAttribute('aria-label', 'סיבוב התמונה');
+      rotate.addEventListener('click', () => rotatePhoto(item));
+      const remove = element('button', 'thumb-button thumb-remove', '×');
+      remove.type = 'button';
+      remove.setAttribute('aria-label', 'הסרת התמונה');
+      remove.addEventListener('click', () => {
+        item.source.close?.();
+        pendingPhotos = pendingPhotos.filter((photo) => photo !== item);
+        renderPhotoGrid();
+        updatePhotoStatus();
+      });
+      thumb.append(image, rotate, remove, element('figcaption', '', `${Math.max(1, Math.round(item.bytes / 1024))}KB`));
+      preview.append(thumb);
+    });
+  }
+
+  function updatePhotoStatus(failure = '') {
+    if (!pendingPhotos.length) { setPhotoStatus(failure, failure ? 'error' : ''); return; }
+    const total = Math.round(pendingPhotos.reduce((sum, item) => sum + item.bytes, 0) / 1024);
+    const ready = pendingPhotos.length === 1 ? 'תמונה אחת מוכנה' : `${pendingPhotos.length} תמונות מוכנות`;
+    setPhotoStatus(`${ready} · כ־${total}KB בסך הכול${failure ? ` · ${failure}` : ''}`, failure ? 'error' : 'success');
+  }
+
+  async function decodeBlob(blob) {
     if (typeof createImageBitmap === 'function') {
-      try {
-        const bitmap = await createImageBitmap(file);
-        return {
-          width: bitmap.width,
-          height: bitmap.height,
-          drawImage(context, ...args) { context.drawImage(bitmap, ...args); },
-          close() { bitmap.close(); }
-        };
-      } catch {
-        // Some mobile browsers expose createImageBitmap but cannot decode every photo format.
+      for (const options of [{ imageOrientation: 'from-image' }, undefined]) {
+        try { return await (options ? createImageBitmap(blob, options) : createImageBitmap(blob)); } catch { /* try next decoder */ }
       }
     }
     return new Promise((resolve, reject) => {
       const image = new Image();
-      const objectUrl = URL.createObjectURL(file);
-      image.onload = () => {
-        URL.revokeObjectURL(objectUrl);
-        resolve({ width: image.naturalWidth, height: image.naturalHeight, drawImage: (context, ...args) => context.drawImage(image, ...args), close() {} });
-      };
-      image.onerror = () => {
-        URL.revokeObjectURL(objectUrl);
-        reject(new Error('לא ניתן לפתוח את התמונה.'));
-      };
-      image.src = objectUrl;
+      const url = URL.createObjectURL(blob);
+      image.onload = () => { URL.revokeObjectURL(url); image.close = () => {}; resolve(image); };
+      image.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode')); };
+      image.src = url;
+    });
+  }
+
+  async function decodeImage(file, format) {
+    try {
+      return await decodeBlob(file);
+    } catch (error) {
+      if (format !== 'HEIC/HEIF') throw error;
+      if (!window.heic2any) await loadScript('assets/vendor/heic2any.min.js');
+      const converted = await window.heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 });
+      return decodeBlob(Array.isArray(converted) ? converted[0] : converted);
+    }
+  }
+
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('read'));
+      reader.readAsDataURL(blob);
     });
   }
 
@@ -437,114 +521,94 @@
       if (brand === 'avif' || brand === 'avis') return 'AVIF';
     }
     if (bytes.length >= 6 && ['GIF87a', 'GIF89a'].includes(String.fromCharCode(...bytes.slice(0, 6)))) return 'GIF';
-    const declaredType = file.type.toLowerCase();
-    if (declaredType.startsWith('image/') && declaredType !== 'image/svg+xml') return declaredType.slice(6).toUpperCase();
     return '';
   }
 
-  async function compressPhoto(file) {
-    const bitmap = await openImage(file);
-    if (!bitmap.width || !bitmap.height) {
-      bitmap.close();
-      throw new Error('קובץ התמונה לא תקין או לא ניתן לקריאה.');
-    }
-    if (bitmap.width * bitmap.height > 55_000_000 || Math.max(bitmap.width, bitmap.height) > 12_000) {
-      bitmap.close();
-      throw new Error('התמונה גדולה מדי לעיבוד.');
-    }
-    const maxSide = 1500;
-    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-    const context = canvas.getContext('2d');
-    if (!context) {
-      bitmap.close();
-      throw new Error('לא ניתן לעבד את התמונה בדפדפן הזה.');
-    }
-    let dataUrl;
-    try {
+  async function encodePhoto(source, rotation, thumbnail = false) {
+    const sw = source.naturalWidth || source.width;
+    const sh = source.naturalHeight || source.height;
+    if (!sw || !sh) throw new Error('קובץ התמונה לא תקין או לא ניתן לקריאה.');
+    if (sw * sh > 100_000_000) throw new Error('התמונה גדולה מדי לעיבוד.');
+    const turned = rotation % 180 !== 0;
+    const target = thumbnail ? 90_000 : (remoteMode ? 1_200_000 : 450_000);
+    let side = thumbnail ? 480 : (remoteMode ? 1800 : 1300);
+    let quality = thumbnail ? 0.7 : 0.85;
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const scale = Math.min(1, side / Math.max(sw, sh));
+      const w = Math.max(1, Math.round(sw * scale));
+      const h = Math.max(1, Math.round(sh * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = turned ? h : w;
+      canvas.height = turned ? w : h;
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('לא ניתן לעבד את התמונה בדפדפן הזה.');
       context.fillStyle = '#fff';
       context.fillRect(0, 0, canvas.width, canvas.height);
-      bitmap.drawImage(context, 0, 0, canvas.width, canvas.height);
-      dataUrl = canvas.toDataURL('image/jpeg', 0.72);
-    } finally {
-      bitmap.close();
+      context.translate(canvas.width / 2, canvas.height / 2);
+      context.rotate((rotation * Math.PI) / 180);
+      context.drawImage(source, -w / 2, -h / 2, w, h);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+      if (!blob) throw new Error('לא ניתן לעבד את התמונה בדפדפן הזה.');
+      if (blob.size <= target || attempt === 9) return { blob, width: canvas.width, height: canvas.height };
+      if (quality > 0.62) quality -= 0.08; else side *= 0.85;
     }
-    if (dataUrl.length > MAX_IMAGE_DATA_LENGTH) throw new Error('התמונה עדיין גדולה מדי לאחר הכיווץ.');
-    return { dataUrl, width: canvas.width, height: canvas.height, bytes: Math.round(dataUrl.length * 0.75) };
+    throw new Error('התמונה עדיין גדולה מדי לאחר הכיווץ.');
+  }
+
+  async function processPhoto(file) {
+    if (!file.size) throw new Error('הקובץ ריק.');
+    if (file.size > MAX_UPLOAD_BYTES) throw new Error('התמונה גדולה מ־30MB.');
+    const format = await detectUploadImageFormat(file);
+    if (!format) throw new Error('אפשר להעלות רק תמונות: JPG, PNG, WebP, HEIC, AVIF או GIF.');
+    const source = await decodeImage(file, format).catch(() => {
+      throw new Error(format === 'HEIC/HEIF' ? 'לא הצלחנו להמיר HEIC. שמרו כ־JPG ונסו שוב.' : 'לא הצלחנו לפתוח את התמונה.');
+    });
+    try {
+      const [{ blob, width, height }, thumbnail] = await Promise.all([encodePhoto(source, 0), encodePhoto(source, 0, true)]);
+      return { source, format, rotation: 0, name: file.name || 'photo', dataUrl: await blobToDataUrl(blob), thumbnailDataUrl: await blobToDataUrl(thumbnail.blob), bytes: blob.size, width, height };
+    } catch (error) {
+      source.close?.();
+      throw error;
+    }
+  }
+
+  async function rotatePhoto(item) {
+    item.rotation = (item.rotation + 90) % 360;
+    setPhotoStatus('מסובבים…', 'checking');
+    try {
+      const [{ blob }, thumbnail] = await Promise.all([encodePhoto(item.source, item.rotation), encodePhoto(item.source, item.rotation, true)]);
+      item.dataUrl = await blobToDataUrl(blob);
+      item.thumbnailDataUrl = await blobToDataUrl(thumbnail.blob);
+      item.bytes = blob.size;
+      renderPhotoGrid();
+      updatePhotoStatus();
+    } catch (error) {
+      updatePhotoStatus(error instanceof Error ? error.message : 'הסיבוב נכשל.');
+    }
+  }
+
+  async function addPhotoFiles(files) {
+    const token = photoSelectionToken;
+    const list = files.filter(Boolean);
+    if (!list.length) return;
+    formMessage.textContent = '';
+    let failure = list.length > MAX_PHOTOS - pendingPhotos.length ? `אפשר לצרף עד ${MAX_PHOTOS} תמונות` : '';
+    setPhotoStatus('מכינים את התמונות…', 'checking');
+    for (const file of list) {
+      if (pendingPhotos.length >= MAX_PHOTOS) break;
+      try {
+        const item = await processPhoto(file);
+        if (token !== photoSelectionToken) { item.source.close?.(); return; }
+        pendingPhotos.push(item);
+        renderPhotoGrid();
+      } catch (error) {
+        failure = `${(file.name || 'תמונה').slice(0, 30)}: ${error instanceof Error ? error.message : 'לא נפתחה'}`;
+      }
+    }
+    if (token === photoSelectionToken) updatePhotoStatus(failure);
   }
 
   document.querySelectorAll('[data-open-form]').forEach((button) => button.addEventListener('click', openDialog));
-  managerModeButton.hidden = !remoteMode;
-  managerModeButton.addEventListener('click', () => {
-    if (managerCode) {
-      managerCode = '';
-      managerModeButton.textContent = 'ניהול ומחיקה';
-      render();
-      return;
-    }
-    managerFormMessage.textContent = '';
-    managerForm.reset();
-    managerDialog.showModal();
-    managerDeleteCode.focus();
-  });
-  document.querySelector('#closeManagerDialog').addEventListener('click', () => managerDialog.close());
-  document.querySelector('#cancelManagerDialog').addEventListener('click', () => managerDialog.close());
-  managerDialog.addEventListener('click', (event) => { if (event.target === managerDialog) managerDialog.close(); });
-  managerForm.addEventListener('submit', (event) => {
-    event.preventDefault();
-    const code = managerDeleteCode.value.trim();
-    if (!code || code.length > 128) {
-      managerFormMessage.textContent = 'הזינו קוד מנהל תקין.';
-      return;
-    }
-    managerCode = code;
-    managerDeleteCode.value = '';
-    managerDialog.close();
-    managerModeButton.textContent = 'יציאה ממצב ניהול';
-    render();
-    showToast('מצב ניהול פעיל במכשיר הזה. אפשר למחוק זיכרונות שפורסמו.');
-  });
-  const handleDeleteClick = async (event) => {
-    const button = event.target.closest('[data-delete-memory]');
-    if (!button || !managerCode) return;
-    const memory = memories.find((item) => item.id === button.dataset.deleteMemory);
-    if (!memory || !window.confirm(`למחוק את „${memory.title}” לצמיתות, כולל התמונה?`)) return;
-    button.disabled = true;
-    button.textContent = 'מוחקים…';
-    try {
-      const response = await fetch(apiUrl, {
-        method: 'DELETE',
-        mode: 'cors',
-        credentials: 'omit',
-        cache: 'no-store',
-        redirect: 'error',
-        headers: { 'Content-Type': 'application/json', 'x-manager-code': managerCode },
-        body: JSON.stringify({ id: memory.id })
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'לא הצלחנו למחוק את הזיכרון.');
-      await loadRemoteMemories();
-      uploadResult.textContent = result.warning || `„${memory.title}” נמחק מהאתר.`;
-      uploadResult.hidden = false;
-      uploadResult.dataset.state = result.warning ? 'pending' : 'success';
-      showToast(uploadResult.textContent);
-    } catch (error) {
-      if (error instanceof Error && error.message === 'Failed to fetch') {
-        showToast('המחיקה נכשלה בגלל חיבור או הגדרות CORS. פרסו את פונקציית Supabase המעודכנת ונסו שוב.');
-      } else if (error instanceof Error && error.message === 'קוד המנהל שגוי.') {
-        managerCode = '';
-        managerModeButton.textContent = 'ניהול ומחיקה';
-        render();
-        showToast('קוד המנהל שגוי. מצב הניהול נסגר.');
-      } else {
-        showToast(error instanceof Error ? error.message : 'לא הצלחנו למחוק את הזיכרון.');
-      }
-    }
-  };
-  grid.addEventListener('click', handleDeleteClick);
-  gallery.addEventListener('click', handleDeleteClick);
   setupPortraitFallback();
   document.querySelector('#closeDialog').addEventListener('click', () => dialog.close());
   document.querySelector('#cancelDialog').addEventListener('click', () => dialog.close());
@@ -572,6 +636,11 @@
       bioFormMessage.textContent = 'צריך למלא תקציר קצר וסיפור מלא.';
       return;
     }
+    const familyCode = String(values.get('familyCode') || '').trim();
+    if (!familyCode) {
+      bioFormMessage.textContent = 'צריך להזין את הקוד המשפחתי.';
+      return;
+    }
     bioSaveButton.disabled = true;
     try {
       const response = await fetch(apiUrl, {
@@ -580,12 +649,13 @@
         credentials: 'omit',
         cache: 'no-store',
         redirect: 'error',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-family-code': familyCode },
         body: JSON.stringify(biography)
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'לא הצלחנו לשמור את קורות החיים.');
       renderBiography(result.biography);
+      bioForm.elements.namedItem('familyCode').value = '';
       bioDialog.close();
       showToast('קורות החיים נשמרו והוצגו באתר המשפחתי.');
     } catch (error) {
@@ -597,7 +667,6 @@
   document.querySelectorAll('[data-filter]').forEach((button) => {
     button.addEventListener('click', () => {
       activeFilter = button.dataset.filter;
-      visibleMemoryLimit = 6;
       document.querySelectorAll('[data-filter]').forEach((chip) => {
         const active = chip === button;
         chip.classList.toggle('active', active);
@@ -606,45 +675,21 @@
       render();
     });
   });
-  search.addEventListener('input', () => { visibleMemoryLimit = 6; render(); });
-  moreMemoriesButton.addEventListener('click', () => { visibleMemoryLimit += 6; render(); });
-  morePhotosButton.addEventListener('click', () => { visiblePhotoLimit += 8; render(); });
+  search.addEventListener('input', render);
   storyInput.addEventListener('input', () => { storyLength.textContent = String(storyInput.value.length); });
-  photoInput.addEventListener('change', async () => {
-    const selectionToken = ++photoSelectionToken;
-    formMessage.textContent = '';
-    setPhotoStatus('', '');
-    const file = photoInput.files?.[0];
-    if (!file) return;
-    if (file.size === 0) {
-      clearPhoto();
-      setPhotoStatus('הקובץ ריק. בחרו תמונה אחרת.', 'error');
-      return;
-    }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      clearPhoto();
-      setPhotoStatus('התמונה גדולה מדי. אפשר לבחור תמונה עד 30MB.', 'error');
-      return;
-    }
-    setPhotoStatus('בודקים את סוג התמונה ומכינים תצוגה מקדימה…', 'checking');
-    try {
-      const format = await detectUploadImageFormat(file);
-      if (file.type.toLowerCase() === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg')) throw new Error('\u05e7\u05d5\u05d1\u05e6\u05d9 SVG \u05dc\u05d0 \u05e0\u05d9\u05ea\u05e0\u05d9\u05dd \u05dc\u05d4\u05e2\u05dc\u05d0\u05d4. \u05d1\u05d7\u05e8\u05d5 \u05ea\u05de\u05d5\u05e0\u05d4 \u05e6\u05d9\u05dc\u05d5\u05de\u05d9\u05ea.');
-      const compressed = await compressPhoto(file);
-      if (selectionToken !== photoSelectionToken) return;
-      pendingPhoto = compressed.dataUrl;
-      previewImage.src = compressed.dataUrl;
-      previewName.textContent = file.name.slice(0, 100);
-      preview.hidden = false;
-      setPhotoStatus(`התמונה תקינה ומוכנה להעלאה · ${(format || '\u05ea\u05de\u05d5\u05e0\u05d4').toUpperCase()} · ${compressed.width}×${compressed.height} · לאחר הכיווץ כ־${Math.max(1, Math.round(compressed.bytes / 1024))}KB`, 'success');
-    } catch (error) {
-      if (selectionToken !== photoSelectionToken) return;
-      const message = error instanceof Error ? error.message : 'לא הצלחנו לפתוח את התמונה. נסו קובץ אחר.';
-      clearPhoto();
-      setPhotoStatus(message, 'error');
-    }
+  photoInput.addEventListener('change', () => {
+    const files = [...(photoInput.files || [])];
+    photoInput.value = '';
+    addPhotoFiles(files);
   });
-  document.querySelector('#removePhoto').addEventListener('click', clearPhoto);
+  const dropzone = document.querySelector('.upload-area');
+  ['dragenter', 'dragover'].forEach((type) => dropzone.addEventListener(type, (event) => { event.preventDefault(); dropzone.classList.add('dragging'); }));
+  ['dragleave', 'drop'].forEach((type) => dropzone.addEventListener(type, () => dropzone.classList.remove('dragging')));
+  dropzone.addEventListener('drop', (event) => { event.preventDefault(); addPhotoFiles([...(event.dataTransfer?.files || [])]); });
+  dialog.addEventListener('paste', (event) => {
+    const files = [...(event.clipboardData?.files || [])].filter((item) => item.type.startsWith('image/'));
+    if (files.length) addPhotoFiles(files);
+  });
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -654,16 +699,15 @@
     const authorInput = cleanText(data.get('author'), 50);
     const story = cleanText(data.get('story'), 2500);
     const category = allowedCategories.has(data.get('category')) ? data.get('category') : 'family';
-    if (!pendingPhoto && !story) {
+    if (!pendingPhotos.length && !story) {
       formMessage.textContent = 'כדי לשמור, צריך לצרף תמונה או לכתוב סיפור קצר.';
       return;
     }
-    const title = titleInput || (pendingPhoto ? `תמונה – ${categoryNames[category]}` : 'זיכרון משפחתי');
+    const title = titleInput || (pendingPhotos.length ? `תמונה – ${categoryNames[category]}` : 'זיכרון משפחתי');
     const author = authorInput || 'בן/בת משפחה';
     if (remoteMode) {
-      const approvalCode = cleanText(data.get('approvalCode'), 128);
-      if (pendingPhoto && !approvalCode) {
-        formMessage.textContent = 'כדי להעלות תמונה, צריך להזין את מילת הקוד המשפחתית.';
+      if (pendingPhotos.length && !cleanText(data.get('approvalCode'), 128)) {
+        formMessage.textContent = 'כדי להעלות תמונה צריך להזין את הקוד המשפחתי. בלי קוד אפשר לשלוח סיפור בלי תמונה, והוא ימתין לאישור.';
         document.querySelector('#approvalCode').focus();
         return;
       }
@@ -682,16 +726,14 @@
       upload.set('story', story);
       upload.set('category', category);
       upload.set('website', cleanText(data.get('website'), 200));
+      const approvalCode = cleanText(data.get('approvalCode'), 128);
       if (approvalCode) upload.set('approvalCode', approvalCode);
       try {
-        if (pendingPhoto) {
-          const photoBlob = dataUrlToBlob(pendingPhoto);
-          upload.set('photo', photoBlob, 'family-photo.jpg');
-          setPhotoStatus('מעלים את התמונה ושומרים אותה באלבום…', 'checking');
-        }
+        pendingPhotos.forEach((item, index) => {
+          upload.append('photo', dataUrlToBlob(item.dataUrl), `family-photo-${index + 1}.jpg`);
+          upload.append('thumbnail', dataUrlToBlob(item.thumbnailDataUrl), `family-thumbnail-${index + 1}.jpg`);
+        });
         submitButton.disabled = true;
-        submitButton.dataset.originalLabel = submitButton.textContent;
-        submitButton.textContent = 'שולחים…';
         const response = await fetch(apiUrl, {
           method: 'POST',
           mode: 'cors',
@@ -704,48 +746,30 @@
         const result = await response.json().catch(() => ({}));
         updateStorageWarning(result.storage);
         if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'לא הצלחנו לשלוח את הזיכרון.');
-        const uploadedPhoto = Boolean(pendingPhoto);
         form.reset();
         storyLength.textContent = '0';
         clearPhoto();
         dialog.close();
         window.turnstile.reset(turnstileWidgetId);
         if (result.pending === false) {
-          const refreshed = await loadRemoteMemories();
-          const photoVisible = refreshed && memories.some((memory) => memory.title === title && memory.author === author && memory.photo);
-          const message = uploadedPhoto
-            ? (photoVisible ? 'התמונה הועלתה בהצלחה ומופיעה באלבום התמונות ובסיפורים שלנו.' : 'התמונה נשמרה, אבל לא הצלחנו להציג אותה כרגע. רעננו את הדף; אם עדיין חסרה, בדקו את הגדרות האחסון ב־Supabase.')
-            : 'הזיכרון פורסם באלבום המשפחתי.';
-          uploadResult.textContent = result.storage?.warning ? `${message} התראת אחסון: השימוש הגיע ל־80% מהמכסה שהוגדרה.` : message;
-          uploadResult.hidden = false;
-          uploadResult.dataset.state = 'success';
-          showToast(result.storage?.warning ? `${message} התראת אחסון: השימוש הגיע ל־80% מהמכסה שהוגדרה.` : message);
-          if (uploadedPhoto) {
-            const galleryDetails = document.querySelector('#gallery details.gallery-details');
-            if (galleryDetails) galleryDetails.open = true;
-          }
-          document.querySelector('#gallery').scrollIntoView({ behavior: 'smooth', block: 'start' });
+          showToast(result.storage?.warning
+            ? 'הזיכרון פורסם. התראת אחסון: מכסת התמונות הגיעה ל־80% והעלאות תמונה נעצרו.'
+            : 'תודה! הזיכרון פורסם באלבום המשפחתי.');
+          await loadRemoteMemories();
         } else {
-          const message = uploadedPhoto
-            ? 'התמונה נשלחה ונשמרה, והיא תופיע באתר לאחר אישור המשפחה.'
-            : 'הזיכרון נשלח לבדיקה ויופיע לאחר אישור.';
-          uploadResult.textContent = message;
-          uploadResult.hidden = false;
-          uploadResult.dataset.state = 'pending';
-          showToast(message);
-          document.querySelector('#gallery').scrollIntoView({ behavior: 'smooth', block: 'start' });
+          showToast(result.storage?.warning
+            ? 'הזיכרון נשלח לבדיקה. התראת אחסון: מכסת התמונות הגיעה ל־80% והעלאות תמונה נעצרו.'
+            : 'תודה! הזיכרון נשלח לבדיקה ויופיע לאחר אישור.');
         }
       } catch (error) {
         formMessage.textContent = error.message === 'Failed to fetch' ? 'השליחה נכשלה. בדקו את החיבור לאינטרנט ונסו שוב.' : error.message;
         if (window.turnstile && turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
       } finally {
         submitButton.disabled = false;
-        submitButton.textContent = submitButton.dataset.originalLabel || 'שמירת הזיכרון ←';
-        delete submitButton.dataset.originalLabel;
       }
       return;
     }
-    const memory = { id: makeId(), title, author, story, category, photo: pendingPhoto, createdAt: new Date().toISOString() };
+    const memory = { id: makeId(), title, author, story, category, photos: pendingPhotos.map((item) => item.dataUrl), thumbnailPhotos: pendingPhotos.map((item) => item.thumbnailDataUrl), createdAt: new Date().toISOString() };
     memories.unshift(memory);
     if (!saveMemories()) {
       memories.shift();
@@ -757,7 +781,6 @@
     clearPhoto();
     dialog.close();
     activeFilter = 'all';
-    visibleMemoryLimit = 6;
     document.querySelectorAll('[data-filter]').forEach((chip) => {
       const active = chip.dataset.filter === 'all';
       chip.classList.toggle('active', active);
@@ -775,6 +798,138 @@
     setPrivacyNote('הסיפורים המשותפים מוצגים כאן. סיפורים חדשים יופיעו לאחר אישור מנהל האתר.');
     loadRemoteMemories();
   }
+
+  async function deleteMemory(memory) {
+    if (!window.confirm(`למחוק את "${memory.title}" לצמיתות?`)) return;
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'DELETE', mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error',
+        headers: { 'Content-Type': 'application/json', 'x-manager-code': managerCode },
+        body: JSON.stringify({ id: memory.id })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (response.status === 403) { managerCode = ''; render(); loadRemoteMemories(); }
+      if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'המחיקה נכשלה.');
+      showToast(result.warning || 'הזיכרון נמחק.');
+      await loadRemoteMemories();
+    } catch (error) {
+      showToast(error instanceof Error && error.message !== 'Failed to fetch' ? error.message : 'המחיקה נכשלה. בדקו את החיבור.');
+    }
+  }
+  document.querySelector('#managerToggle').addEventListener('click', () => {
+    if (!remoteMode) { showToast('ניהול זמין לאחר חיבור האתר לאחסון המשותף.'); return; }
+    if (managerCode) { managerCode = ''; loadRemoteMemories(); showToast('מצב ניהול כבוי.'); return; }
+    managerFormMessage.textContent = '';
+    managerForm.reset();
+    managerDialog.showModal();
+    managerCodeInput.focus();
+  });
+
+  document.querySelector('#closeManagerDialog').addEventListener('click', () => managerDialog.close());
+  document.querySelector('#cancelManagerDialog').addEventListener('click', () => managerDialog.close());
+  managerDialog.addEventListener('click', (event) => { if (event.target === managerDialog) managerDialog.close(); });
+  managerForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const candidate = String(new FormData(managerForm).get('managerCode') || '').trim();
+    if (!candidate || candidate.length > 128) { managerFormMessage.textContent = 'יש להזין קוד מנהל.'; return; }
+    const submit = managerForm.querySelector('[type="submit"]');
+    submit.disabled = true;
+    managerFormMessage.textContent = 'בודקים את הקוד…';
+    try {
+      await loadRemoteMemories(candidate);
+      managerCode = candidate;
+      managerCodeInput.value = '';
+      managerDialog.close();
+      render();
+      showToast('מצב ניהול פעיל. אפשר לטפל בזיכרונות ממתינים ולמחוק פריטים.');
+    } catch (error) {
+      managerFormMessage.textContent = error instanceof Error ? error.message : 'לא הצלחנו לאמת את קוד המנהל.';
+    } finally {
+      submit.disabled = false;
+    }
+  });
+
+  async function moderateMemory(memory, status) {
+    const action = status === 'approved' ? 'לפרסם' : 'לדחות';
+    if (!window.confirm(`האם ${action} את „${memory.title}”?`)) return;
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'PATCH', mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error',
+        headers: { 'Content-Type': 'application/json', 'x-manager-code': managerCode },
+        body: JSON.stringify({ id: memory.id, action: status === 'approved' ? 'approve' : 'reject' })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (response.status === 403) { managerCode = ''; loadRemoteMemories(); }
+      if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'לא הצלחנו לעדכן את הזיכרון.');
+      await loadRemoteMemories();
+      showToast(status === 'approved' ? 'הזיכרון אושר ופורסם.' : 'הזיכרון נדחה ולא יוצג למבקרים.');
+    } catch (error) {
+      showToast(error instanceof Error && error.message !== 'Failed to fetch' ? error.message : 'לא הצלחנו לעדכן את הזיכרון. בדקו את החיבור.');
+    }
+  }
+
+  async function photoAction(photo, action) {
+    const isCover = action === 'set_cover';
+    if (!isCover && !window.confirm(`למחוק את התמונה „${photo.title}” לצמיתות?`)) return;
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'PATCH', mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error',
+        headers: { 'Content-Type': 'application/json', 'x-manager-code': managerCode },
+        body: JSON.stringify({ id: photo.memory.id, photoId: photo.photoId, action })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (response.status === 403) { managerCode = ''; loadRemoteMemories(); }
+      if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'לא הצלחנו לעדכן את התמונה.');
+      await loadRemoteMemories();
+      showToast(result.warning || (isCover ? 'תמונת השער הוחלפה.' : 'התמונה נמחקה.'));
+    } catch (error) {
+      showToast(error instanceof Error && error.message !== 'Failed to fetch' ? error.message : 'לא הצלחנו לעדכן את התמונה. בדקו את החיבור.');
+    }
+  }
+
+  function refreshSoon() {
+    if (!remoteMode || Date.now() - refreshAt < 30000) return;
+    refreshAt = Date.now();
+    loadRemoteMemories();
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (remoteMode && !document.hidden && Date.now() - lastRemoteLoad > 20 * 60 * 1000) loadRemoteMemories();
+  });
+
+  const lightbox = document.querySelector('#lightbox');
+  let lbPhotos = [];
+  let lbIndex = 0;
+  let lbStartX = 0;
+  function showLightbox() {
+    const memory = lbPhotos[lbIndex];
+    document.querySelector('#lbImg').src = memory.photo;
+    document.querySelector('#lbImg').alt = memory.title;
+    document.querySelector('#lbCap').textContent = `${memory.title} · מאת ${memory.author}`;
+    document.querySelector('#lbCount').textContent = `${lbIndex + 1} / ${lbPhotos.length}`;
+  }
+  function openLightbox(list, index) {
+    lbPhotos = list;
+    lbIndex = index;
+    showLightbox();
+    if (!lightbox.open) lightbox.showModal();
+  }
+  function stepLightbox(delta) {
+    lbIndex = (lbIndex + delta + lbPhotos.length) % lbPhotos.length;
+    showLightbox();
+  }
+  document.querySelector('#lbClose').addEventListener('click', () => lightbox.close());
+  document.querySelector('#lbPrev').addEventListener('click', () => stepLightbox(-1));
+  document.querySelector('#lbNext').addEventListener('click', () => stepLightbox(1));
+  lightbox.addEventListener('click', (event) => { if (event.target === lightbox) lightbox.close(); });
+  lightbox.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowLeft') stepLightbox(1);
+    if (event.key === 'ArrowRight') stepLightbox(-1);
+  });
+  lightbox.addEventListener('pointerdown', (event) => { lbStartX = event.clientX; });
+  lightbox.addEventListener('pointerup', (event) => {
+    const dx = event.clientX - lbStartX;
+    if (Math.abs(dx) > 60) stepLightbox(dx < 0 ? 1 : -1);
+  });
 
   function dataUrlToBlob(dataUrl) {
     const [header, encoded] = dataUrl.split(',');
