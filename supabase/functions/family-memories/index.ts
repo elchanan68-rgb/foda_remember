@@ -585,8 +585,8 @@ async function moderateMemory(request: Request, headers: HeadersInit): Promise<R
   const value = input && typeof input === 'object' ? input as { id?: unknown; status?: unknown; action?: unknown; photoId?: unknown } : {};
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   if (typeof value.id !== 'string' || !uuidPattern.test(value.id)) return json({ error: 'מזהה הזיכרון אינו תקין.' }, 400, headers);
-  if (value.action === 'approve' || value.action === 'reject') {
-    const status = value.action === 'approve' ? 'approved' : 'rejected';
+  if (value.status === 'approved' || value.status === 'rejected') {
+    const status = value.status;
     const { data, error } = await admin.from('family_memories').update({ status }).eq('id', value.id).eq('status', 'pending').select('id,status').maybeSingle();
     if (error) return json({ error: 'לא הצלחנו לעדכן את מצב הזיכרון.' }, 503, headers);
     if (!data) return json({ error: 'הזיכרון אינו ממתין לאישור או שכבר טופל.' }, 404, headers);

@@ -856,7 +856,7 @@
       const response = await fetch(apiUrl, {
         method: 'PATCH', mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error',
         headers: { 'Content-Type': 'application/json', 'x-manager-code': managerCode },
-        body: JSON.stringify({ id: memory.id, action: status === 'approved' ? 'approve' : 'reject' })
+        body: JSON.stringify({ id: memory.id, status })
       });
       const result = await response.json().catch(() => ({}));
       if (response.status === 403) { managerCode = ''; loadRemoteMemories(); }
