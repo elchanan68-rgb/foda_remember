@@ -53,11 +53,16 @@ for (const viewport of [
       document: document.documentElement.scrollWidth,
       viewport: document.documentElement.clientWidth,
       portraitVisible: !!document.querySelector('#heroPortrait')?.getBoundingClientRect().width,
-      navLinks: [...document.querySelectorAll('.main-nav a')].every((link) => link.getBoundingClientRect().width > 0)
+      navLinks: [...document.querySelectorAll('.main-nav a')].every((link) => link.getBoundingClientRect().width > 0),
+      smallTargets: [...document.querySelectorAll('.main-nav a, .button, .filter-chip, .search-box, #managerToggle, .back-top')]
+        .filter((target) => target.getClientRects().length)
+        .filter((target) => { const rect = target.getBoundingClientRect(); return rect.width < 44 || rect.height < 44; })
+        .map((target) => target.className || target.id)
     }));
     expect(dimensions.document, `horizontal overflow at ${viewport.width}px`).toBeLessThanOrEqual(dimensions.viewport);
     expect(dimensions.portraitVisible).toBe(true);
     expect(dimensions.navLinks).toBe(true);
+    expect(dimensions.smallTargets, `touch targets below 44px at ${viewport.width}px`).toEqual([]);
   });
 }
 
